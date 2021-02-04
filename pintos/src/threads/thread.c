@@ -462,8 +462,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  sema_init(&t->sema, 0);
+
+  /* data structures related to user program*/
   t->parent = running_thread();
+  sema_init (&t->running_sema, 0);
+  list_init (&t->child_processes);
+  t->exit_status = 0;
+  list_push_back(&running_thread ()->child_processes, &t->child_elem);
   
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

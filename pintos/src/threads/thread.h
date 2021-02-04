@@ -82,12 +82,6 @@ typedef int tid_t;
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
 
-struct child_thread
-{
-   tid_t tid;                /* tid of thread */
-   struct list_elem elem;    /* List element for all child threads of a thread*/
-};
-
 struct thread
   {
     /* Owned by thread.c. */
@@ -97,16 +91,21 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    struct semaphore sema;
-    struct thread *parent;
+    
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    struct list child_threads;          /* List of child threads */
+    /*Shared between thread.c, userprog/process.c and userprog/syscall.c */
+    struct thread *parent;              /* Parent process */ 
+    struct semaphore running_sema;      /* Wait between parent and child process */
+    struct list child_processes;        /* List of child processes */
+    int exit_status;                    /* Exit status of thread */
+    struct list_elem child_elem;        /* List element for child_processes list */
+    
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
+    uint32_t *pagedir;               /* Page directory. */
 #endif
 
     /* Owned by thread.c. */

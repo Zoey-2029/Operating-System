@@ -97,8 +97,12 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  sema_down(&thread_current()->sema);
-  return -1;
+  struct thread *child_process = get_child_process(child_tid);
+  if (child_process == NULL) return -1;
+  sema_down(&thread_current ()->running_sema);
+
+  int exit_status = child_process->exit_status;
+  return exit_status;
 }
 
 
@@ -125,7 +129,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-    sema_up(&thread_current()->parent->sema);
+    
+    sema_up(&thread_current ()->parent->running_sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -142,6 +147,20 @@ process_activate (void)
   /* Set thread's kernel stack for use in processing
      interrupts. */
   tss_update ();
+}
+
+struct thread *
+get_child_process(tid_t child_tid) 
+{
+  struct list_elem *e;
+  struct list l = thread_current() ->child_processes;
+  for (e = list_begin (&l); e != list_end (&l); e = list_next (e))
+  {
+    struct thread *child_process = list_entry (e, struct thread, child_elem);
+    if (child_process->tid == child_tid) 
+      return child_process;
+  }
+  return NULL;
 }
 
 /* We load ELF binaries.  The following definitions are taken
