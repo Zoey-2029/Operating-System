@@ -27,12 +27,13 @@ syscall_handler (struct intr_frame *f UNUSED)
   {
     case SYS_HALT:
     {
+      sys_halt();
       break;
     }
       
     case SYS_EXIT: 
     {
-      int status = *((int*)f->esp + 1);
+      int status = *((int *)f->esp + 1);
       sys_exit(status);
       break;
     } 
@@ -74,7 +75,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_WRITE:
     {
-      int fd = *((int*)f->esp + 1);
+      int fd = *((int *)f->esp + 1);
       void* buffer = (void *)(*((int *)f->esp + 2));
       unsigned size = *((unsigned *)f->esp + 3);
       f->eax = sys_write(fd, buffer, size);
@@ -112,8 +113,9 @@ sys_halt() {
 }
 
 void 
-sys_exit (int status) {
-  printf("exit *** %d \n", status);
+sys_exit (int status) 
+{
+  printf ("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();
 }
 
