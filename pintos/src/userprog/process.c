@@ -29,6 +29,7 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
+  
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -38,8 +39,16 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  // process the command line and pass arguments to thread
+  char *args;
+  char *fn_copy_2 = palloc_get_page (0);
+  if (fn_copy_2 == NULL)
+    return TID_ERROR;
+  strlcpy (fn_copy_2, file_name, PGSIZE);
+  char *program_name = strtok_r (fn_copy_2, " ", &args);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -88,6 +97,9 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  while (true) {
+    thread_yield();
+  }
   return -1;
 }
 
@@ -195,7 +207,8 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, const char *file_name);
+static void *setup_arguments_in_stack(const char *file_name);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -221,11 +234,20 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  /* Open executable file. */
-  file = filesys_open (file_name);
+
+  /* Process file_name to get the executables file name
+     Open executable file. */
+  char *fn_copy = palloc_get_page (0);
+  char *argv;
+  if (fn_copy == NULL)
+    return false;
+  strlcpy (fn_copy, file_name, PGSIZE);
+  char *program_name = strtok_r(fn_copy, " ", &argv);
+  file = filesys_open (program_name);
+
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", program_name);
       goto done; 
     }
 
@@ -238,7 +260,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", program_name);
       goto done; 
     }
 
@@ -302,7 +324,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, file_name))
     goto done;
 
   /* Start address. */
@@ -427,7 +449,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, const char *file_name) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -436,12 +458,78 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE;
-      else
+      if (success) {
+        // set up the argument in stack
+        *esp = setup_arguments_in_stack(file_name);
+      } else {
         palloc_free_page (kpage);
+      }
     }
   return success;
+}
+ 
+/* Pushs all the arguments into stack before kernel allows user 
+program to run*/
+static void *
+setup_arguments_in_stack(const char *file_name) {
+  
+  // first copy argv to argv_copy
+  char *fn_copy = palloc_get_page (0);
+  if (fn_copy == NULL)
+    return PHYS_BASE;
+  strlcpy (fn_copy, file_name, PGSIZE);
+
+  
+  char *stack_ptr = PHYS_BASE;
+  char *argv_pointers[100];
+  char *save_ptr;
+  int argc = 0;
+
+  /* (1) First, break the command into words
+  Place the words at the top of the stack  */
+  for (char *single_argv = strtok_r (fn_copy, " ", &save_ptr); 
+        single_argv != NULL;
+        single_argv = strtok_r (NULL, " ", &save_ptr)) 
+        {
+          // size of the char array to hold a single argument
+          size_t len = strlen(single_argv) + 1;
+          stack_ptr -= len;
+
+          // push all the argument chars to the stack
+          memcpy(stack_ptr, single_argv, len);
+          argv_pointers[argc] = stack_ptr;
+          argc++;
+        }
+  
+  /* (2) word align */
+  if ((size_t)stack_ptr % 4 != 0) {
+    size_t align = (size_t)stack_ptr % 4;
+    stack_ptr -= align;
+  }
+  
+  /* (3) push the address of each string plus a null pointer 
+  sentinel, on the stack */
+  stack_ptr -= sizeof(char *);
+  for (int index = argc - 1; index >= 0; index--) {
+    stack_ptr -= sizeof(char *);
+    *(char **)stack_ptr = argv_pointers[index];
+  }
+  
+  /* (4) push argv (the address of argv[0]) and argc, in that order. 
+  Finally, push a fake "return address". */
+
+  // push argv[0]
+  stack_ptr -= sizeof(char *);
+  *(char **)stack_ptr = stack_ptr + sizeof(char *);
+
+  // push argc
+  stack_ptr -= sizeof(int);
+  *(int *)stack_ptr = argc;
+
+  // push a fake "return address"
+  stack_ptr -= sizeof(void *);
+  //hex_dump((size_t)stack_ptr, (void *)stack_ptr, PHYS_BASE - (int)stack_ptr, true);
+  return stack_ptr;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
