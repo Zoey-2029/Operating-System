@@ -99,13 +99,14 @@ syscall_handler (struct intr_frame *f UNUSED)
     default:
     {
       printf("unimplemented system call \n");
+      sys_exit(-1);
     }
   }
 }
 
 void 
 sys_exit (int status) {
-  //printf("exit *** %d \n", status);
+  printf("exit *** %d \n", status);
   thread_exit();
 }
 

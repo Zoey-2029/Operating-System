@@ -97,9 +97,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while (true) {
-    thread_yield();
-  }
+  sema_down(&thread_current()->sema);
   return -1;
 }
 
@@ -126,6 +124,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+    sema_up(&thread_current()->parent->sema);
 }
 
 /* Sets up the CPU for running user code in the current
