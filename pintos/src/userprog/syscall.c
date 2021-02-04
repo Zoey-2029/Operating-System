@@ -6,8 +6,10 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "devices/shutdown.h"
 
 #define MAX_WRITE_CHUNK 200
+
 
 void
 syscall_init (void) 
@@ -105,15 +107,61 @@ syscall_handler (struct intr_frame *f UNUSED)
 }
 
 void 
+sys_halt() {
+  shutdown_power_off();
+}
+
+void 
 sys_exit (int status) {
   printf("exit *** %d \n", status);
   thread_exit();
 }
 
+pid_t 
+sys_exec (const char *cmd_line) 
+{
+  return 0;
+}
+
 int 
-sys_write(int fd, void * buffer, unsigned size) {
-  //printf("write to concole \n");
-  check_pointer_validity(buffer);
+sys_wait (pid_t pid) 
+{
+
+}
+
+bool 
+sys_create (const char *file, unsigned initial_size) 
+{
+
+}
+
+bool 
+sys_remove (const char *file) 
+{
+
+}
+
+int 
+sys_open (const char *file) 
+{
+  return 0;
+}
+ 
+int 
+sys_filesize (int fd)
+{
+  return 0;
+}
+
+int 
+sys_read (int fd, void *buffer, unsigned size) 
+{
+  return 0;
+}
+
+int 
+sys_write(int fd, const void * buffer, unsigned size) {
+  check_pointer_validity((void *)buffer);
   if (fd == STDOUT_FILENO) {
     size_t bytes_written = 0;
     while(bytes_written + MAX_WRITE_CHUNK < size) 
@@ -123,10 +171,25 @@ sys_write(int fd, void * buffer, unsigned size) {
     }
     putbuf((char *)(buffer + bytes_written), 
             (size_t)(size - bytes_written));
-    //printf("complete !!!!\n ");
     return size;
   }
   return 0;
+}
+
+void 
+sys_seek (int fd, unsigned position)
+{
+
+}
+
+unsigned sys_tell (int fd) 
+{
+  return 0;
+}
+
+void sys_close (int fd) 
+{
+
 }
 
 void 
