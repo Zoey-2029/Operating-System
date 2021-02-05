@@ -179,7 +179,6 @@ sys_read (int fd, const void *buffer, unsigned size)
 
 int 
 sys_write(int fd, const void *buffer, unsigned size) {
-  // a part of buffer may be invalid
   if (!check_memory_validity(buffer, size))
     return 0;
 
@@ -216,11 +215,13 @@ void sys_close (int fd)
 }
 
 
-/**/
+/* check if the user pointer is valid
+   virtual_addr: the first pointer
+   size: number of pointers to check validity */
 bool
 check_memory_validity(const void *virtual_addr, unsigned size) 
 {
-  for (unsigned i = 0; i < size *sizeof(void *); i++) 
+  for (unsigned i = 0; i < size * sizeof(void *); i++) 
   {
     const void *addr = virtual_addr + i;
 
