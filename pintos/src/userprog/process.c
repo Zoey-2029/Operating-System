@@ -129,7 +129,7 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-    
+
     sema_up(&thread_current ()->parent->running_sema);
 }
 
@@ -149,6 +149,8 @@ process_activate (void)
   tss_update ();
 }
 
+
+/* find the child process with pid of child_pid of current thread */
 struct thread *
 get_child_process(tid_t child_tid) 
 {

@@ -20,19 +20,30 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  check_pointer_validity(f->esp);
-  //printf ("system call! %d \n", *(size_t *) f->esp);
 
+  if (!check_memory_validity(f->esp, 1)) 
+    sys_exit(-1);
+
+  // number of args to check validity
+  unsigned args = 0;
   switch(*(int *) f->esp) 
   {
     case SYS_HALT:
     {
+      args = 0;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+
       sys_halt();
       break;
     }
       
     case SYS_EXIT: 
     {
+      args = 1;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+
       int status = *((int *)f->esp + 1);
       sys_exit(status);
       break;
@@ -75,8 +86,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_WRITE:
     {
+      args = 3;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+      
       int fd = *((int *)f->esp + 1);
-      void* buffer = (void *)(*((int *)f->esp + 2));
+      const void *buffer = (void *)(*((int *)f->esp + 2));
       unsigned size = *((unsigned *)f->esp + 3);
       f->eax = sys_write(fd, buffer, size);
       break;
@@ -157,14 +172,19 @@ sys_filesize (int fd)
 }
 
 int 
-sys_read (int fd, void *buffer, unsigned size) 
+sys_read (int fd, const void *buffer, unsigned size) 
 {
   return 0;
 }
 
 int 
-sys_write(int fd, const void * buffer, unsigned size) {
-  check_pointer_validity((void *)buffer);
+sys_write(int fd, const void *buffer, unsigned size) {
+  // a part of buffer may be invalid
+  if (!check_memory_validity(buffer, size))
+    return 0;
+
+  // write to console
+  // break the buffer to 200-byte chunks
   if (fd == STDOUT_FILENO) {
     size_t bytes_written = 0;
     while(bytes_written + MAX_WRITE_CHUNK < size) 
@@ -195,16 +215,25 @@ void sys_close (int fd)
 
 }
 
-void 
-check_pointer_validity(void *uvaddr) 
+
+/**/
+bool
+check_memory_validity(const void *virtual_addr, unsigned size) 
 {
-  /* invalid user virtual pointer: 
+  for (unsigned i = 0; i < size *sizeof(void *); i++) 
+  {
+    const void *addr = virtual_addr + i;
+
+    /* invalid user virtual pointer: 
      NULL pointer, 
-     a pointer to unmapped virtual memory, 
-     or a pointer to kernel virtual address space */
-  if (uvaddr == NULL ||                                   
-      !is_user_vaddr(uvaddr) || 
-      pagedir_get_page(thread_current ()->pagedir, uvaddr) == NULL) {
-        thread_exit();
-      }
+     a pointer below the code segment
+     a pointer to kernel virtual address space,
+     a pointer to unmapped virtual memory,  */
+    if (addr == NULL ||
+        addr < 0x08048000 || 
+        !is_user_vaddr(addr) || 
+        !pagedir_get_page(thread_current ()->pagedir, addr)) 
+          return false; 
+  }
+  return true;
 }
