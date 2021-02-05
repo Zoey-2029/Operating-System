@@ -9,6 +9,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "threads/malloc.h"
+#include "devices/input.h"
 #define MAX_WRITE_CHUNK 200
 
 void
@@ -18,9 +19,8 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f) 
 {
-
   if (!check_memory_validity(f->esp, 1)) 
     sys_exit(-1);
 
@@ -73,6 +73,12 @@ syscall_handler (struct intr_frame *f UNUSED)
       
     case SYS_REMOVE:
     {
+      args = 1;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+      
+      const char* file = (void *)(*((int *)f->esp + 1));
+      f->eax = sys_remove(file);
       break;
     }
 
@@ -105,7 +111,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         sys_exit(-1);
       
       int fd = *((int *)f->esp + 1);
-      const void *buffer = (void *)(*((int *)f->esp + 2));
+      void *buffer = (void *)(*((int *)f->esp + 2));
       unsigned size = *((unsigned *)f->esp + 3);
       f->eax = sys_read(fd, buffer, size);
       break;
@@ -126,18 +132,37 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_SEEK:
     {
+      args = 2;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+      
+      int fd = *((int *)f->esp + 1);
+      unsigned position = *((unsigned *)f->esp + 2);
+      sys_seek(fd, position);
       break;
     }
       
 
     case SYS_TELL:
     {
+      args = 1;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+      
+      int fd = *((int *)f->esp + 1);
+      f->eax = sys_tell(fd);
       break;
     }
       
       
     case SYS_CLOSE:
     {
+      args = 1;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+      
+      int fd = *((int *)f->esp + 1);
+      sys_close(fd);
       break;
     }
       
@@ -186,7 +211,11 @@ sys_create (const char *file, unsigned initial_size)
 bool 
 sys_remove (const char *file) 
 {
+  if (!check_memory_validity(file, 1)) {
+    sys_exit(-1);
+  }
 
+  return filesys_remove(file);
 }
 
 int 
@@ -224,17 +253,22 @@ sys_read (int fd, void *buffer, unsigned size)
   if (!check_memory_validity(buffer, 1)) {
     sys_exit(-1);
   }
-  
-  // TODO: read from stdin
 
-  struct file_info *info = find_file_info(fd);
+  unsigned bytes_read = 0;
 
-  if (!info) {
-    return -1;
+  if (fd == STDIN_FILENO) {
+    while(bytes_read < size) {
+      ((char*)buffer)[bytes_read++] = input_getc();
+    }
+  } else {
+    struct file_info *info = find_file_info(fd);
+
+    if (!info) {
+      return -1;
+    }
+
+    bytes_read = file_read(info->file, buffer, size);
   }
-
-  off_t bytes_read = file_read(info->file, buffer, size);
-  // printf("sys_read size: %d bytes_read: %d\n", size, bytes_read);
   return bytes_read;
 }
 
@@ -262,21 +296,31 @@ sys_write(int fd, const void *buffer, unsigned size) {
   if (!info) {
     return -1;
   }
-
-  off_t bytes_written = file_write(info->file, buffer, size);
-  // printf("sys_read size: %d bytes_read: %d\n", size, bytes_read);
-  return bytes_written;
+  
+  return file_write(info->file, buffer, size);
 }
 
 void 
 sys_seek (int fd, unsigned position)
 {
+  struct file_info *info = find_file_info (fd);
 
+  if (info) 
+  {
+     file_seek (info->file, position);
+  }
 }
 
 unsigned sys_tell (int fd) 
 {
-  return 0;
+  struct file_info *info = find_file_info (fd);
+
+  if (!info)
+  {
+    return -1;
+  }
+
+  return file_tell (info->file);
 }
 
 void sys_close (int fd) 

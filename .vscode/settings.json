@@ -8,6 +8,9 @@
         "LIST.C": "cpp",
         "MALLOC.C": "cpp",
         "LIB.C": "cpp",
-        "SYSCALL.C": "cpp"
+        "SYSCALL.C": "cpp",
+        "INPUT.C": "cpp",
+        "CONSOLE.C": "cpp",
+        "*.inc": "cpp"
     }
 }
