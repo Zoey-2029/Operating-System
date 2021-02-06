@@ -12,7 +12,6 @@
 typedef int pid_t;
 
 void syscall_init (void);
-static void syscall_handler (struct intr_frame *);
 
 struct file_info
 {
@@ -38,8 +37,5 @@ void sys_close (int fd);
 
 // helper function
 bool check_memory_validity(const void *addr, unsigned size);
-
-static int fd_count = STDOUT_FILENO + 1;
-static struct file_info* find_file_info(int fd);
 
 #endif /* userprog/syscall.h */
