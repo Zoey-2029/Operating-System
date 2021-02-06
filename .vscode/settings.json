@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "__threading_support": "c",
+        "cstdarg": "c",
+        "INTERRUPT.C": "cpp",
+        "FILE.C": "cpp",
+        "INODE.C": "cpp",
+        "LIST.C": "cpp",
+        "MALLOC.C": "cpp",
+        "LIB.C": "cpp",
+        "SYSCALL.C": "cpp",
+        "INPUT.C": "cpp",
+        "CONSOLE.C": "cpp",
+        "*.inc": "cpp"
+    }
+}
