@@ -329,7 +329,6 @@ sys_write(int fd, const void *buffer, unsigned size) {
   lock_acquire (&filesys_lock);
   off_t bytes_written = file_write (info->file, buffer, size);
   lock_release (&filesys_lock);
-
   return bytes_written;
 }
 
