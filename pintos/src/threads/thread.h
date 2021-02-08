@@ -102,6 +102,7 @@ struct thread
     int exit_status;                    /* Exit status of thread */
     struct list_elem child_elem;        /* List element for child_processes list */
     struct list file_info_list;
+    struct file *exec_file;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

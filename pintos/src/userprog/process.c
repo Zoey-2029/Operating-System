@@ -129,8 +129,11 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-    sema_up(&thread_current ()->parent->running_sema);
+  if (cur->exec_file) 
+    {
+      file_close(cur->exec_file);
+    }
+  sema_up(&thread_current ()->parent->running_sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -284,6 +287,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: error loading executable\n", program_name);
       goto done; 
     }
+    
+  /* Deny write of the executable */
+  file_deny_write(file);
+  t->exec_file = file;
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -355,7 +362,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if (!success)
+    file_close (file);
   return success;
 }
 

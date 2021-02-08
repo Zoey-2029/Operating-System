@@ -11,6 +11,7 @@
         "SYSCALL.C": "cpp",
         "INPUT.C": "cpp",
         "CONSOLE.C": "cpp",
-        "*.inc": "cpp"
+        "*.inc": "cpp",
+        "FILESYS.C": "cpp"
     }
 }
