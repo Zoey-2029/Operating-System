@@ -70,6 +70,12 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
+  /* Save the load status*/
+  thread_current()->load_status = success;
+
+  /* Wake up parent*/
+  sema_up(&thread_current()->sema_exec);
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -99,7 +105,7 @@ process_wait (tid_t child_tid UNUSED)
 {
   struct thread *child_process = get_child_process(child_tid);
   if (child_process == NULL) return -1;
-  sema_down(&thread_current ()->running_sema);
+  sema_down(&thread_current ()->sema_wait);
 
   int exit_status = child_process->exit_status;
   return exit_status;
@@ -130,7 +136,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
-    sema_up(&thread_current ()->parent->running_sema);
+    sema_up(&thread_current ()->parent->sema_wait);
 }
 
 /* Sets up the CPU for running user code in the current

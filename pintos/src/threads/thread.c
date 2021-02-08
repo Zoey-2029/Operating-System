@@ -465,8 +465,10 @@ init_thread (struct thread *t, const char *name, int priority)
 
   /* data structures related to user program*/
   t->parent = running_thread();
-  sema_init (&t->running_sema, 0);
+  sema_init (&t->sema_wait, 0);
+  sema_init (&t->sema_exec, 0);
   list_init (&t->child_processes);
+  t->load_status = false;
   t->exit_status = 0;
   list_push_back(&running_thread ()->child_processes, &t->child_elem);
   list_init (&t->file_info_list);

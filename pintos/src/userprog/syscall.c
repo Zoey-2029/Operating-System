@@ -10,6 +10,7 @@
 #include "filesys/file.h"
 #include "threads/malloc.h"
 #include "devices/input.h"
+#include "process.h"
 #define MAX_WRITE_CHUNK 200
 
 static int FD_COUNT = STDOUT_FILENO + 1;
@@ -57,6 +58,12 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_EXEC:
     {
+      args = 1;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+
+      const char *cmd_line = (void *)(*((int *)f->esp + 1));
+      f->eax = sys_exec(cmd_line);
       break;
     }
 
@@ -196,7 +203,18 @@ sys_exit (int status)
 pid_t 
 sys_exec (const char *cmd_line UNUSED) 
 {
-  return 0;
+  //struct thread* current = thread_current();
+  pid_t child_pid = process_execute(cmd_line);
+
+  /* Get child process from pid*/
+  struct thread *child_process = get_child_process(child_pid);
+
+  /* Wait for child process loading*/
+  sema_down(&child_process->sema_exec);
+
+  /* Return -1 if loading faild, otherwise return pid*/
+  if (child_process->load_status) return child_pid;
+  else return -1;
 }
 
 int 

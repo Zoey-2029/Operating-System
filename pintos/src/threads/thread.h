@@ -97,11 +97,14 @@ struct thread
 
     /*Shared between thread.c, userprog/process.c and userprog/syscall.c */
     struct thread *parent;              /* Parent process */ 
-    struct semaphore running_sema;      /* Wait between parent and child process */
     struct list child_processes;        /* List of child processes */
+    bool load_status;
     int exit_status;                    /* Exit status of thread */
     struct list_elem child_elem;        /* List element for child_processes list */
     struct list file_info_list;
+    
+    struct semaphore sema_wait;      /* Wait between parent and child process */
+    struct semaphore sema_exec;      /* Execute between parent and child process */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
