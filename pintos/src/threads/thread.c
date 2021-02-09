@@ -283,6 +283,8 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
+  /* Signal parant to stop waiting*/
+  sema_up(&thread_current()->sema_wait);
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -470,6 +472,7 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->child_processes);
   t->load_status = false;
   t->exit_status = 0;
+  t->curr_status = CREATED;
   list_push_back(&running_thread ()->child_processes, &t->child_elem);
   list_init (&t->file_info_list);
   

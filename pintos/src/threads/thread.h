@@ -25,6 +25,9 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+#define CREATED 2
+#define ACIVE 1
+#define KILLED 0
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -100,11 +103,13 @@ struct thread
     struct list child_processes;        /* List of child processes */
     bool load_status;
     int exit_status;                    /* Exit status of thread */
+    int curr_status;                    /* Current status of thread */
     struct list_elem child_elem;        /* List element for child_processes list */
     struct list file_info_list;
     
     struct semaphore sema_wait;      /* Wait between parent and child process */
     struct semaphore sema_exec;      /* Execute between parent and child process */
+    struct file *exec_file;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

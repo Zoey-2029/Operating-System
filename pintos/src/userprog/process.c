@@ -104,11 +104,26 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
   struct thread *child_process = get_child_process(child_tid);
-  if (child_process == NULL) return -1;
-  sema_down(&thread_current ()->sema_wait);
 
-  int exit_status = child_process->exit_status;
-  return exit_status;
+  if (child_process == NULL) {return -1;}
+
+  printf("TID: %d\n", child_tid);
+  printf("Child TID: %d\n", child_process->tid);
+
+  if (child_process->parent != NULL){
+    if(child_process->curr_status==CREATED){
+      child_process->curr_status = ACIVE;
+      printf ("before %d: exit(%d)\n", child_process->tid, child_process->exit_status);
+      sema_down(&child_process->sema_wait);
+      printf ("after %d: exit(%d)\n", child_process->tid, child_process->exit_status);
+      return child_process->exit_status;
+    }
+  }
+
+  //printf ("sgfasdgfa %s: exit(%d)\n", child_process->parent->name, thread_current()->exit_status);
+  //printf ("56416 %s: exit(%d)\n", child_process->tid, child_process->exit_status);
+  //int exit_status = child_process->exit_status;
+  return -1;
 }
 
 
@@ -117,6 +132,7 @@ void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
+  
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -135,8 +151,11 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-    sema_up(&thread_current ()->parent->sema_wait);
+  if (cur->exec_file) 
+  {
+    file_close(cur->exec_file);
+  }
+  //sema_up(&thread_current ()->parent->sema_wait);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -290,6 +309,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: error loading executable\n", program_name);
       goto done; 
     }
+    
+  /* Deny write of the executable */
+  file_deny_write(file);
+  t->exec_file = file;
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -361,7 +384,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if (!success)
+    file_close (file);
   return success;
 }
 

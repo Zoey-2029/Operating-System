@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "FILE.C": "cpp",
+        "FILESYS.C": "cpp",
+        "SYSCALL.C": "cpp",
+        "INODE.C": "cpp",
+        "LIB.C": "cpp"
+    }
+}

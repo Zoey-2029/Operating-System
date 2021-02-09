@@ -69,6 +69,12 @@ syscall_handler (struct intr_frame *f)
 
     case SYS_WAIT:
     {
+      args = 1;
+      if (!check_memory_validity((int *)f->esp + 1, args)) 
+        sys_exit(-1);
+
+      pid_t pid = *((pid_t *)f->esp + 1);
+      f->eax = sys_filesize (pid);
       break;
     }
       
@@ -347,7 +353,6 @@ sys_write(int fd, const void *buffer, unsigned size) {
   lock_acquire (&filesys_lock);
   off_t bytes_written = file_write (info->file, buffer, size);
   lock_release (&filesys_lock);
-
   return bytes_written;
 }
 
