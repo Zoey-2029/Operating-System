@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+// #include "tests/lib.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -51,6 +52,7 @@ process_execute (const char *file_name)
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  // printf("process_execute %d fine\n", tid);
   return tid;
 }
 
@@ -68,18 +70,27 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* Save the load status*/
-  thread_current()->load_status = success;
-
-  /* Wake up parent*/
-  sema_up(&thread_current()->sema_exec);
+  // printf("set load_status\n");
+  struct thread_info *info = get_child_process(thread_current()->tid, &thread_current() -> parent ->child_processes);
+  info->load_status = success;
+  
+  // printf("about to sema up %d\n", success);
+ 
+  /* If load failed, quit. */
+  if (!success) {
+    sema_up(&thread_current() -> parent->sema_exec);
+    palloc_free_page (file_name);
+    thread_exit ();
+  }
+  sema_up(&thread_current() -> parent->sema_exec);
+  
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  // 
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -101,13 +112,17 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  struct thread *child_process = get_child_process(child_tid);
+  // printf("%d process_wait for %d %p\n", thread_current()->tid, child_tid, &thread_current()->sema_wait);
+  // printf("%p\n", &thread_current()->child_processes);
+  struct thread_info *child_process = get_child_process(child_tid, &thread_current()->child_processes);
+  // printf("AAAAAA\n");
   if (child_process == NULL) return -1;
-  sema_down(&thread_current ()->sema_wait);
-
+  sema_down(&thread_current()->sema_wait);
+  // printf("waited for %d\n", child_tid);
   int exit_status = child_process->exit_status;
+  // printf("A");
   return exit_status;
 }
 
@@ -139,7 +154,7 @@ process_exit (void)
   {
     file_close(cur->exec_file);
   }
-  sema_up(&thread_current ()->parent->sema_wait);
+  sema_up(&cur->parent->sema_wait);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -160,16 +175,17 @@ process_activate (void)
 
 
 /* find the child process with pid of child_pid of current thread */
-struct thread *
-get_child_process(tid_t child_tid) 
+struct thread_info *
+get_child_process(tid_t child_tid, struct list *l) 
 {
   struct list_elem *e;
-  struct list l = thread_current() ->child_processes;
-  for (e = list_begin (&l); e != list_end (&l); e = list_next (e))
+  for (e = list_begin (l); e != list_end (l); e = list_next (e)) 
   {
-    struct thread *child_process = list_entry (e, struct thread, child_elem);
-    if (child_process->tid == child_tid) 
-      return child_process;
+    struct thread_info *process = list_entry (e, struct thread_info, elem);
+    if (process->tid == child_tid) {
+      // printf("found tid %d\n", child_tid);
+      return process;
+    }
   }
   return NULL;
 }

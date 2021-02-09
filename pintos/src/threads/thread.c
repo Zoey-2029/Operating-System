@@ -10,6 +10,7 @@
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -169,6 +170,7 @@ thread_create (const char *name, int priority,
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
+  struct thread_info *info;
   tid_t tid;
 
   ASSERT (function != NULL);
@@ -181,6 +183,15 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  
+  t->parent = thread_current();
+  info = calloc(1, sizeof(struct thread_info));
+  info->load_status = false;
+  info->tid = t->tid;
+  info->exit_status = 0;
+  info->thread = t;
+  list_push_back(&thread_current ()->child_processes, &info->elem);
+  // printf("thread create parent:%d child:%d \n", t->parent->tid, t->tid);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -464,15 +475,12 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   /* data structures related to user program*/
-  t->parent = running_thread();
   sema_init (&t->sema_wait, 0);
   sema_init (&t->sema_exec, 0);
   list_init (&t->child_processes);
-  t->load_status = false;
-  t->exit_status = 0;
-  list_push_back(&running_thread ()->child_processes, &t->child_elem);
+  // t->load_status = false;
+  // t->exit_status = 0;
   list_init (&t->file_info_list);
-  
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

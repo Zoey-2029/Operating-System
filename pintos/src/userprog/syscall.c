@@ -17,6 +17,7 @@ static int FD_COUNT = STDOUT_FILENO + 1;
 static void syscall_handler (struct intr_frame *);
 static struct file_info* find_file_info(int fd);
 static struct lock filesys_lock;
+static void free_file_info (void);
 
 void
 syscall_init (void) 
@@ -202,31 +203,58 @@ void
 sys_exit (int status) 
 {
   printf ("%s: exit(%d)\n", thread_current()->name, status);
-  thread_current() ->exit_status = status;
+  struct thread_info *info = get_child_process(thread_current()->tid, &thread_current()->parent->child_processes);
+  info->exit_status = status;
+  // printf("about to thread_exit\n");
+  free_file_info();
+  struct list_elem *e;
+  struct list *l = &thread_current()->child_processes;
+
+  for (e = list_begin(l); e != list_end(l); )
+  {
+    struct thread_info *f = list_entry(e, struct thread_info, elem);
+    e = list_next(e);
+    free(f);
+  }
   thread_exit();
 }
 
 pid_t 
-sys_exec (const char *cmd_line UNUSED) 
+sys_exec (const char *cmd_line) 
 {
   //struct thread* current = thread_current();
+  if (!check_memory_validity (cmd_line, 1))
+  {
+    sys_exit(-1);
+  }
   pid_t child_pid = process_execute(cmd_line);
-
+  sema_down(&thread_current()->sema_exec);
   /* Get child process from pid*/
-  struct thread *child_process = get_child_process(child_pid);
-
+  // printf("child process %d parent %d\n", child_pid, thread_current()->tid);
+  struct thread_info *child_process = get_child_process(child_pid, &thread_current()->child_processes);
+  // printf("child process %p\n", child_process);
   /* Wait for child process loading*/
-  sema_down(&child_process->sema_exec);
 
   /* Return -1 if loading faild, otherwise return pid*/
+  // printf("get status back %d\n", child_process->load_status);
   if (child_process->load_status) return child_pid;
   else return -1;
 }
 
 int 
-sys_wait (pid_t pid UNUSED) 
+sys_wait (pid_t pid) 
 {
-  return process_wait(pid);
+  struct thread_info *child_process = get_child_process(pid, &thread_current()->child_processes);
+
+  if (!child_process) {
+    return -1;
+  }
+  // printf("about to wait %d\n", pid);
+  int wait_result = process_wait(pid);
+  if (wait_result != -1)
+    list_remove(&child_process->elem);
+
+  return wait_result;
 }
 
 bool 
@@ -264,12 +292,13 @@ sys_open (const char *file)
   if (!check_memory_validity (file, 1)) {
     sys_exit(-1);
   }
-  lock_acquire (&filesys_lock);
+ 
   struct file *f = filesys_open (file);
   if (f == NULL)
   {
     return -1;
   }
+  lock_acquire (&filesys_lock);
   struct file_info *info = calloc (1, sizeof (struct file_info));
   info->fd = FD_COUNT++;
   info->file = f;
@@ -282,12 +311,11 @@ int
 sys_filesize (int fd)
 {
   struct file_info *info = find_file_info(fd);
-
+  lock_acquire (&filesys_lock);
   if (!info) 
   {
     return -1;
   }
-  lock_acquire (&filesys_lock);
   int size = file_length (info->file);
   lock_release (&filesys_lock);
   return size;
@@ -311,6 +339,7 @@ sys_read (int fd, void *buffer, unsigned size)
     }
   } else 
   {
+    
     struct file_info *info = find_file_info (fd);
 
     if (!info) 
@@ -318,7 +347,9 @@ sys_read (int fd, void *buffer, unsigned size)
       return -1;
     }
     lock_acquire (&filesys_lock);
+    // printf("start read\n");
     bytes_read = file_read (info->file, buffer, size);
+    // printf("end read\n");
     lock_release (&filesys_lock);
   }
   return bytes_read;
@@ -359,9 +390,8 @@ sys_write(int fd, const void *buffer, unsigned size) {
 void 
 sys_seek (int fd, unsigned position)
 {
-  lock_acquire (&filesys_lock);
   struct file_info *info = find_file_info (fd);
-
+  lock_acquire (&filesys_lock);
   if (info) 
   {
      file_seek (info->file, position);
@@ -371,14 +401,14 @@ sys_seek (int fd, unsigned position)
 
 unsigned sys_tell (int fd) 
 {
-  lock_acquire (&filesys_lock);
+
   struct file_info *info = find_file_info (fd);
 
   if (!info)
   {
     return -1;
   }
-
+  lock_acquire (&filesys_lock);
   off_t position = file_tell (info->file);
   lock_release (&filesys_lock);
 
@@ -387,12 +417,13 @@ unsigned sys_tell (int fd)
 
 void sys_close (int fd) 
 {
-  lock_acquire (&filesys_lock);
+  
   struct file_info *info = find_file_info(fd);
-
+  lock_acquire (&filesys_lock);
   if (info) 
   {
     list_remove(&info->elem);
+    free(info);
   }
   lock_release (&filesys_lock);
 }
@@ -430,9 +461,21 @@ static struct file_info* find_file_info(int fd) {
   for (e = list_begin (l); e != list_end (l); e = list_next (e)) {
     struct file_info *f = list_entry (e, struct file_info, elem);
     if (f->fd == fd) {
+      // printf("found\n");
       return f;
     }
   }
 
   return NULL;
+}
+
+static void free_file_info() {
+  struct list_elem *e;
+  struct list *l = &thread_current()->file_info_list;
+  // printf("%p\n", l);
+  for (e = list_begin (l); e != list_end (l); ) {
+    struct file_info *f = list_entry (e, struct file_info, elem);
+    e = list_next (e);
+    if (f) free(f);
+  }
 }
