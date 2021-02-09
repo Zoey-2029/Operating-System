@@ -74,7 +74,7 @@ syscall_handler (struct intr_frame *f)
         sys_exit(-1);
 
       pid_t pid = *((pid_t *)f->esp + 1);
-      f->eax = sys_filesize (pid);
+      f->eax = sys_wait (pid);
       break;
     }
       
@@ -226,7 +226,7 @@ sys_exec (const char *cmd_line UNUSED)
 int 
 sys_wait (pid_t pid UNUSED) 
 {
-  return 0;
+  return process_wait(pid);
 }
 
 bool 
