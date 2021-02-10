@@ -53,9 +53,32 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* file_info struct keeps track of the opened file and its fd. */
+struct file_info
+{
+  int fd;
+  struct list_elem elem;
+  struct file *file;
+};
+
+/* Lock to make sure only one process can interact with filesys. */
+static struct lock filesys_lock;
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
+
+1. File descriptors (fd) and open files (*file) are both members of the 
+file_info struct. When a file is opened, the program creates a
+file_info struct and inserts it to the file_info_list of the thread.
+With this design, given a fd, to find a file associated, we just need
+to check the list and see if there exists a file_info struct that has
+the same fd and returns the *file store in this struct.
+
+2. File descriptors are unique within a single process. Common Unix 
+system implements per-process file descriptor table so we implement 
+our file descriptors in the similar way.
+
 
 ---- ALGORITHMS ----
 
@@ -107,6 +130,22 @@ FirstName LastName <email@domain.example>
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
+
+1. In our design, the process does not reuse file descriptors if a file is
+closed. 
+The advantage is that it's very easy to assign new file 
+descriptors without having to go back and find available fds.
+This could be an issue if a process open a large amount of files. However, 
+since we define fd as an int which can go up to 2,147,483,647 on modern 
+machines, it's very unlikely that the fd could go out of bouds.
+
+2. In our design, each process has a list of file_info structs. 
+The advantage is to utilizes existing list functions so it's easier to 
+implement. 
+But this requires the program to go through the list to find the file 
+mathing the pid, which could be slow if a process has a large amount of 
+opened, unclosed files.
+
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?

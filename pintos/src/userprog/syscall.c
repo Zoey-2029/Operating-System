@@ -15,6 +15,8 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
+
+/* Lock to make sure only one process can interact with filesys. */
 static struct lock filesys_lock;
 
 /* Helper function(s). */
