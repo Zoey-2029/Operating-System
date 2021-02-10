@@ -89,7 +89,7 @@ struct thread_info {
     bool load_status;
     int exit_status;                    /* Exit status of thread */
     int curr_status;                    /* Current status of thread */
-    struct thread *thread;
+   //  struct thread *thread;
     struct list_elem elem;        /* List element for child_processes list */
 };
 

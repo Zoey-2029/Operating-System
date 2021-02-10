@@ -252,8 +252,10 @@ sys_wait (pid_t pid)
   }
   // printf("about to wait %d\n", pid);
   int wait_result = process_wait(pid);
-  if (wait_result != -1)
+  if (child_process->exit_status != -1) {
     list_remove(&child_process->elem);
+    free(child_process);
+  }
 
   return wait_result;
 }
@@ -300,7 +302,7 @@ sys_open (const char *file)
     return -1;
   }
   lock_acquire (&filesys_lock);
-  struct file_info *info = calloc (1, sizeof (struct file_info));
+  struct file_info *info = calloc (1, sizeof (*info));
   info->fd = FD_COUNT++;
   info->file = f;
   list_push_back (&thread_current ()->file_info_list, &info->elem);
@@ -463,7 +465,6 @@ static struct file_info* find_file_info(int fd) {
   for (e = list_begin (l); e != list_end (l); e = list_next (e)) {
     struct file_info *f = list_entry (e, struct file_info, elem);
     if (f->fd == fd) {
-      // printf("found\n");
       return f;
     }
   }
@@ -478,6 +479,9 @@ static void free_file_info() {
   for (e = list_begin (l); e != list_end (l); ) {
     struct file_info *f = list_entry (e, struct file_info, elem);
     e = list_next (e);
-    if (f) free(f);
+    if (f) {
+      file_close(f->file);
+      free(f);
+    }
   }
 }

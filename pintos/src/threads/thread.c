@@ -189,7 +189,7 @@ thread_create (const char *name, int priority,
   info->load_status = false;
   info->tid = t->tid;
   info->exit_status = 0;
-  info->thread = t;
+  // info->thread = t;
   list_push_back(&thread_current ()->child_processes, &info->elem);
   // printf("thread create parent:%d child:%d \n", t->parent->tid, t->tid);
 
