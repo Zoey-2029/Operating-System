@@ -12,6 +12,8 @@
         "INPUT.C": "cpp",
         "CONSOLE.C": "cpp",
         "*.inc": "cpp",
-        "FILESYS.C": "cpp"
+        "FILESYS.C": "cpp",
+        "THREAD.C": "cpp",
+        "SYNCH.C": "cpp"
     }
 }

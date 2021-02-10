@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+// #include "tests/lib.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -40,17 +41,20 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   // process the command line and pass arguments to thread
-  char *args;
   char *fn_copy_2 = palloc_get_page (0);
   if (fn_copy_2 == NULL)
     return TID_ERROR;
+  char *to_free = fn_copy_2;
   strlcpy (fn_copy_2, file_name, PGSIZE);
+  char *args;
   char *program_name = strtok_r (fn_copy_2, " ", &args);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page(to_free);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+  
   return tid;
 }
 
@@ -68,12 +72,25 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
   success = load (file_name, &if_.eip, &if_.esp);
+  palloc_free_page (file_name);
+  /* Save the load status*/
+  // printf("set load_status\n");
+  struct thread_info *info = get_child_process(thread_current()->tid, &thread_current() -> parent ->child_processes);
+  info->load_status = success;
+  
+  /* If load failed, quit. */
+  if (!success) {
+    //printf("%d about to sema up %d\n", thread_current()->tid, success);
+    sema_up(&thread_current() -> parent->sema_exec);
+    thread_exit ();
+  }
+  sema_up(&thread_current() -> parent->sema_exec);
+  
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  // 
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -95,13 +112,17 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  struct thread *child_process = get_child_process(child_tid);
+  // printf("%d process_wait for %d %p\n", thread_current()->tid, child_tid, &thread_current()->sema_wait);
+  // printf("%p\n", &thread_current()->child_processes);
+  struct thread_info *child_process = get_child_process(child_tid, &thread_current()->child_processes);
+  // printf("AAAAAA\n");
   if (child_process == NULL) return -1;
-  sema_down(&thread_current ()->running_sema);
-
+  sema_down(&thread_current()->sema_wait);
+  // printf("waited for %d\n", child_tid);
   int exit_status = child_process->exit_status;
+  // printf("A");
   return exit_status;
 }
 
@@ -130,10 +151,11 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   if (cur->exec_file) 
-    {
-      file_close(cur->exec_file);
-    }
-  sema_up(&thread_current ()->parent->running_sema);
+  {
+    // printf("about to close exec file\n");
+    file_close(cur->exec_file);
+  }
+  sema_up(&cur->parent->sema_wait);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -154,16 +176,17 @@ process_activate (void)
 
 
 /* find the child process with pid of child_pid of current thread */
-struct thread *
-get_child_process(tid_t child_tid) 
+struct thread_info *
+get_child_process(tid_t child_tid, struct list *l) 
 {
   struct list_elem *e;
-  struct list l = thread_current() ->child_processes;
-  for (e = list_begin (&l); e != list_end (&l); e = list_next (e))
+  for (e = list_begin (l); e != list_end (l); e = list_next (e)) 
   {
-    struct thread *child_process = list_entry (e, struct thread, child_elem);
-    if (child_process->tid == child_tid) 
-      return child_process;
+    struct thread_info *process = list_entry (e, struct thread_info, elem);
+    if (process->tid == child_tid) {
+      // printf("found tid %d\n", child_tid);
+      return process;
+    }
   }
   return NULL;
 }
@@ -262,18 +285,27 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Process file_name to get the executables file name
      Open executable file. */
   char *fn_copy = palloc_get_page (0);
-  char *argv;
   if (fn_copy == NULL)
     return false;
+  char *to_free = fn_copy;
+  char *argv;
   strlcpy (fn_copy, file_name, PGSIZE);
+
   char *program_name = strtok_r(fn_copy, " ", &argv);
+
   file = filesys_open (program_name);
+  
 
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", program_name);
+      palloc_free_page(to_free);
       goto done; 
     }
+
+  /* Deny write of the executable */
+  file_deny_write(file);
+  t->exec_file = file;
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -285,13 +317,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024) 
     {
       printf ("load: %s: error loading executable\n", program_name);
+      palloc_free_page(to_free);
       goto done; 
     }
-    
-  /* Deny write of the executable */
-  file_deny_write(file);
-  t->exec_file = file;
 
+  palloc_free_page(to_free);
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -362,8 +392,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  if (!success)
-    file_close (file);
   return success;
 }
 
@@ -504,6 +532,7 @@ setup_arguments_in_stack(const char *file_name) {
   
   // first copy argv to argv_copy
   char *fn_copy = palloc_get_page (0);
+  char *to_free = fn_copy;
   if (fn_copy == NULL)
     return PHYS_BASE;
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -558,6 +587,7 @@ setup_arguments_in_stack(const char *file_name) {
   // push a fake "return address"
   stack_ptr -= sizeof(void *);
   //hex_dump((size_t)stack_ptr, (void *)stack_ptr, PHYS_BASE - (int)stack_ptr, true);
+  palloc_free_page(to_free);
   return stack_ptr;
 }
 
