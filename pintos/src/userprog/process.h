@@ -10,5 +10,4 @@ void process_activate (void);
 
 struct thread_info *get_child_process(tid_t, struct list*);
 
-
 #endif /* userprog/process.h */

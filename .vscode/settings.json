@@ -14,6 +14,7 @@
         "*.inc": "cpp",
         "FILESYS.C": "cpp",
         "THREAD.C": "cpp",
-        "SYNCH.C": "cpp"
+        "SYNCH.C": "cpp",
+        "PAGEDIR.C": "cpp"
     }
 }

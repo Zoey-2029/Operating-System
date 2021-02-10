@@ -84,14 +84,6 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-struct thread_info {
-    int tid;
-    bool load_status;
-    int exit_status;                    /* Exit status of thread */
-    int curr_status;                    /* Current status of thread */
-   //  struct thread *thread;
-    struct list_elem elem;        /* List element for child_processes list */
-};
 
 struct thread
   {
@@ -106,23 +98,32 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    /*Shared between thread.c, userprog/process.c and userprog/syscall.c */
-    struct thread *parent;              /* Parent process */ 
-    struct list child_processes;        /* List of child processes */
-    struct list file_info_list;
-    
-    struct semaphore sema_wait;      /* Wait between parent and child process */
-    struct semaphore sema_exec;      /* Execute between parent and child process */
-    struct file *exec_file;
-
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
-    uint32_t *pagedir;               /* Page directory. */
+    uint32_t *pagedir;                  /* Page directory. */
+    struct thread *parent;              /* Parent process. */ 
+    struct list child_processes;        /* List of child processes. */
+    struct list file_info_list;         /* List of files opened. */
+    struct semaphore sema_wait;         /* Wait between parent 
+                                           and child process. */
+    struct semaphore sema_exec;         /* Execute between parent 
+                                           and child process. */
+    struct file *exec_file;             /* Executable file. */
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+/* This struct is used for parent to retrive its children's info
+   even after the child has exited. */
+struct thread_info {
+    int tid;
+    bool load_status;
+    int exit_status;                    /* Exit status of thread */
+    int curr_status;                    /* Current status of thread */
+    struct list_elem elem;              /* List element for child_processes */
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
