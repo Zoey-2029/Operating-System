@@ -41,15 +41,17 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   // process the command line and pass arguments to thread
-  // maximum command line length: 400
-  char fn_copy_2[400];
-  strlcpy(fn_copy_2, file_name, sizeof fn_copy_2);
+  char *fn_copy_2 = palloc_get_page (0);
+  if (fn_copy_2 == NULL)
+    return TID_ERROR;
+  char *to_free = fn_copy_2;
+  strlcpy (fn_copy_2, file_name, PGSIZE);
   char *args;
   char *program_name = strtok_r (fn_copy_2, " ", &args);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
-
+  palloc_free_page(to_free);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   
@@ -80,7 +82,7 @@ start_process (void *file_name_)
   
   /* If load failed, quit. */
   if (!success) {
-    printf("%d about to sema up %d\n", thread_current()->tid, success);
+    //printf("%d about to sema up %d\n", thread_current()->tid, success);
     sema_up(&thread_current() -> parent->sema_exec);
     thread_exit ();
   }
@@ -283,10 +285,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Process file_name to get the executables file name
      Open executable file. */
   char *fn_copy = palloc_get_page (0);
-  char *to_free = fn_copy;
-  char *argv;
   if (fn_copy == NULL)
     return false;
+  char *to_free = fn_copy;
+  char *argv;
   strlcpy (fn_copy, file_name, PGSIZE);
 
   char *program_name = strtok_r(fn_copy, " ", &argv);
@@ -296,7 +298,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   if (file == NULL) 
     {
-      palloc_free_page(to_free);
       printf ("load: %s: open failed\n", program_name);
       goto done; 
     }
@@ -314,12 +315,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      palloc_free_page(to_free);
       printf ("load: %s: error loading executable\n", program_name);
       goto done; 
     }
     
-  palloc_free_page(to_free);
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -390,9 +389,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  // if (!success) {
-  //   file_allow_write (file);
-  // }
+  palloc_free_page(to_free);
   return success;
 }
 
