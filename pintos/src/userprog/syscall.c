@@ -214,7 +214,7 @@ sys_exit (int status)
   {
     struct thread_info *f = list_entry(e, struct thread_info, elem);
     e = list_next(e);
-    free(f);
+    if (f) free(f);
   }
   thread_exit();
 }
@@ -228,6 +228,7 @@ sys_exec (const char *cmd_line)
     sys_exit(-1);
   }
   pid_t child_pid = process_execute(cmd_line);
+  // printf("before sema down\n");
   sema_down(&thread_current()->sema_exec);
   /* Get child process from pid*/
   // printf("child process %d parent %d\n", child_pid, thread_current()->tid);
@@ -422,6 +423,7 @@ void sys_close (int fd)
   lock_acquire (&filesys_lock);
   if (info) 
   {
+    file_close(info->file);
     list_remove(&info->elem);
     free(info);
   }

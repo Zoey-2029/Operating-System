@@ -129,6 +129,7 @@ main (int argc, char *argv[])
       /* Spawn a child that will be abnormally terminated.
          To speed the test up, do this only for processes
          spawned at a certain depth. */
+      // printf("about to spwan CRASH child\n");
       if (n > EXPECTED_DEPTH_TO_PASS/2)
         {
           child_pid = spawn_child (n + 1, CRASH);
@@ -140,10 +141,9 @@ main (int argc, char *argv[])
           /* If spawning this child failed, so should
              the next spawn_child below. */
         }
-
+      // printf("about to spwan RECURSE child\n");
       /* Now spawn the child that will recurse. */
       child_pid = spawn_child (n + 1, RECURSE);
-
       /* If maximum depth is reached, return result. */
       if (child_pid == -1)
         return n;

@@ -47,9 +47,9 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy_2, file_name, PGSIZE);
   char *program_name = strtok_r (fn_copy_2, " ", &args);
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page(fn_copy_2);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   // printf("process_execute %d fine\n", tid);
@@ -72,18 +72,16 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
 
   success = load (file_name, &if_.eip, &if_.esp);
-
+  palloc_free_page (file_name);
   /* Save the load status*/
   // printf("set load_status\n");
   struct thread_info *info = get_child_process(thread_current()->tid, &thread_current() -> parent ->child_processes);
   info->load_status = success;
   
-  // printf("about to sema up %d\n", success);
- 
   /* If load failed, quit. */
   if (!success) {
+    printf("%d about to sema up %d\n", thread_current()->tid, success);
     sema_up(&thread_current() -> parent->sema_exec);
-    palloc_free_page (file_name);
     thread_exit ();
   }
   sema_up(&thread_current() -> parent->sema_exec);
@@ -152,6 +150,7 @@ process_exit (void)
     }
   if (cur->exec_file) 
   {
+    // printf("about to close exec file\n");
     file_close(cur->exec_file);
   }
   sema_up(&cur->parent->sema_wait);
@@ -288,7 +287,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (fn_copy == NULL)
     return false;
   strlcpy (fn_copy, file_name, PGSIZE);
+
   char *program_name = strtok_r(fn_copy, " ", &argv);
+
   file = filesys_open (program_name);
 
   if (file == NULL) 
@@ -296,6 +297,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", program_name);
       goto done; 
     }
+
+  /* Deny write of the executable */
+  file_deny_write(file);
+  t->exec_file = file;
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -310,9 +315,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
     
-  /* Deny write of the executable */
-  file_deny_write(file);
-  t->exec_file = file;
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -384,8 +386,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  if (!success)
-    file_close (file);
+  // if (!success) {
+  //   file_allow_write (file);
+  // }
   return success;
 }
 
@@ -580,6 +583,7 @@ setup_arguments_in_stack(const char *file_name) {
   // push a fake "return address"
   stack_ptr -= sizeof(void *);
   //hex_dump((size_t)stack_ptr, (void *)stack_ptr, PHYS_BASE - (int)stack_ptr, true);
+  
   return stack_ptr;
 }
 

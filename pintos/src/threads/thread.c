@@ -185,7 +185,7 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
   
   t->parent = thread_current();
-  info = calloc(1, sizeof(struct thread_info));
+  info = calloc(1, sizeof(*info));
   info->load_status = false;
   info->tid = t->tid;
   info->exit_status = 0;
