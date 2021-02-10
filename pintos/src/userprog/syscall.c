@@ -13,7 +13,6 @@
 #include <syscall-nr.h>
 #define MAX_WRITE_CHUNK 200
 
-static int FD_COUNT = STDOUT_FILENO + 1;
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
 static struct lock filesys_lock;
@@ -256,6 +255,9 @@ sys_wait (pid_t pid)
     }
   
   wait_result = process_wait (pid);
+
+  /* If wait was successful, this means the child has exited,
+     so we can remove it from the child_processes list. */
   if (child_process->exit_status != -1)
     {
       list_remove (&child_process->elem);
@@ -310,8 +312,10 @@ sys_open (const char *file)
       return -1;
     }
   lock_acquire (&filesys_lock);
+  /* Use file_info struct to map file descriptors to files. */
   info = calloc (1, sizeof (*info));
-  info->fd = FD_COUNT++;
+  info->fd = thread_current()->fd_count;
+  thread_current()->fd_count += 1;
   info->file = f;
   list_push_back (&thread_current ()->file_info_list, &info->elem);
   lock_release (&filesys_lock);

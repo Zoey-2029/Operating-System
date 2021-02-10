@@ -109,6 +109,7 @@ struct thread
     struct semaphore sema_exec;         /* Execute between parent 
                                            and child process. */
     struct file *exec_file;             /* Executable file. */
+    int fd_count;
 #endif
 
     /* Owned by thread.c. */
