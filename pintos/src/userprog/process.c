@@ -299,6 +299,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", program_name);
+      palloc_free_page(to_free);
       goto done; 
     }
 
@@ -316,9 +317,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phnum > 1024) 
     {
       printf ("load: %s: error loading executable\n", program_name);
+      palloc_free_page(to_free);
       goto done; 
     }
-    
+
+  palloc_free_page(to_free);
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -389,7 +392,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  palloc_free_page(to_free);
   return success;
 }
 
