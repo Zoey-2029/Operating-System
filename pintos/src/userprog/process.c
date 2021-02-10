@@ -283,6 +283,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Process file_name to get the executables file name
      Open executable file. */
   char *fn_copy = palloc_get_page (0);
+  char *to_free = fn_copy;
   char *argv;
   if (fn_copy == NULL)
     return false;
@@ -291,9 +292,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *program_name = strtok_r(fn_copy, " ", &argv);
 
   file = filesys_open (program_name);
+  
 
   if (file == NULL) 
     {
+      palloc_free_page(to_free);
       printf ("load: %s: open failed\n", program_name);
       goto done; 
     }
@@ -311,11 +314,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
+      palloc_free_page(to_free);
       printf ("load: %s: error loading executable\n", program_name);
       goto done; 
     }
     
-
+  palloc_free_page(to_free);
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -529,6 +533,7 @@ setup_arguments_in_stack(const char *file_name) {
   
   // first copy argv to argv_copy
   char *fn_copy = palloc_get_page (0);
+  char *to_free = fn_copy;
   if (fn_copy == NULL)
     return PHYS_BASE;
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -583,7 +588,7 @@ setup_arguments_in_stack(const char *file_name) {
   // push a fake "return address"
   stack_ptr -= sizeof(void *);
   //hex_dump((size_t)stack_ptr, (void *)stack_ptr, PHYS_BASE - (int)stack_ptr, true);
-  
+  palloc_free_page(to_free);
   return stack_ptr;
 }
 
