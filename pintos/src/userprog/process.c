@@ -41,18 +41,18 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   // process the command line and pass arguments to thread
+  // maximum command line length: 400
+  char fn_copy_2[400];
+  strcpy(fn_copy_2, file_name, sizeof fn_copy_2);
   char *args;
-  char *fn_copy_2 = palloc_get_page (0);
-  if (fn_copy_2 == NULL)
-    return TID_ERROR;
-  strlcpy (fn_copy_2, file_name, PGSIZE);
   char *program_name = strtok_r (fn_copy_2, " ", &args);
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
   palloc_free_page(fn_copy_2);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
-  // printf("process_execute %d fine\n", tid);
+    palloc_free_page (fn_copy);
+  
   return tid;
 }
 
