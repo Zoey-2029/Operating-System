@@ -245,28 +245,8 @@ sys_exec (const char *cmd_line)
 
 int
 sys_wait (pid_t pid)
-{
-  struct thread_info *child_process
-      = get_child_process (pid, &thread_current ()->child_processes);
-  int wait_result;
-
-  /* If pid is not found is parent's children list, return -1. */
-  if (!child_process)
-    {
-      return -1;
-    }
-  
-  wait_result = process_wait (pid);
-
-  /* If wait was successful, this means the child has exited,
-     so we can remove it from the child_processes list. */
-  if (child_process->exit_status != -1)
-    {
-      list_remove (&child_process->elem);
-      free (child_process);
-    }
-
-  return wait_result;
+{ 
+  return process_wait (pid);
 }
 
 bool

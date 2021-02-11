@@ -9,7 +9,7 @@
 >> Fill in the names and email addresses of your group members.
 
 Jizhen Wang <jzwang43@stanford.edu>
-FirstName LastName <email@domain.example>
+Bowen Tan <tanbowen@@stanford.edu>
 FirstName LastName <email@domain.example>
 
 ---- PRELIMINARIES ----
@@ -53,6 +53,47 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread
+{
+#ifdef USERPROG
+/* Owned by userprog/process.c. */
+uint32_t *pagedir;                  /* Page directory. */
+struct thread *parent;              /* Parent process. */ 
+struct list child_processes;        /* List of child processes. */
+struct list file_info_list;         /* List of files opened. */
+struct semaphore sema_wait;         /* Wait between parent 
+										and child process. */
+struct semaphore sema_exec;         /* Execute between parent 
+										and child process. */
+struct file *exec_file;             /* Executable file. */
+int fd_count;
+#endif
+};
+
+1. pagedir: points to the page directory
+2. parent: points to the parent thread, if any
+3. child_processes: list of child processes
+4. file_info_list: list of opened files
+5. sema_wait: semaphore used to sync the parent and child process in sys_wait
+6. sema_exec: semaphore used to sync the parent and child process in sys_exec
+7. exec_file: points to the executable file
+8. fd_count: track the number of opened files (Please double check)
+
+struct thread_info {
+    int tid;
+    bool load_status;
+    int exit_status;                    /* Exit status of thread */
+    struct list_elem elem;              /* List element for child_processes */
+};
+
+Basically, this struct is used for parent to retrive its children's info
+even after the child has exited
+
+1. tid: the thread ID of the thread
+2. load_status: used to indicate if the user thread was loaded successfully
+3. exit_status: track the exit status of the thread
+4. elem: list element for the child_process defined inside struct thread 
+
 /* file_info struct keeps track of the opened file and its fd. */
 struct file_info
 {
@@ -95,6 +136,18 @@ our file descriptors in the similar way.
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
 
+1. Becasue a therad would be destroyed when it exited, we implement the 
+"thread_info" struct to save the necessary info that could be used
+after thread exiting, such as exit status and tid.
+
+2. For the main body of the sys_wait, the parent checks if the input tid
+is a valid child, and return -1 if not. Otherwise, it'll  wait on semaphore 
+"sema_wait". 
+3. As dor the child thread, it signals the parent to stop waiting when 
+exiting/terminating. Once parent waked up, it checks the exit_status of the 
+child, and remove/free the child from child_processes  
+
+
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
 >> process to be terminated.  System calls are fraught with such
@@ -116,12 +169,45 @@ our file descriptors in the similar way.
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
+1. As addressed above, we ha a semaphore "sema_exec" to sync parent and
+child threads. Ih the sys_exec function, after parent therad send the 
+child to execute, it'll pull down the "sema_exec". Once the child thread 
+failed loading (terminated) or finished executing successfully, it'll 
+signal its parent to stop waiting by rising the "sema_exec". 
+
+2. Additionally, having mentioned above, we implemented a "thread_info"
+struct to hold the necessary information in case a therad exits. There,
+a member "load_status" is used to track if the user therad is created or
+loaded successfully, and once the parent waken up, it can check this 
+struct member for the status of loading
+
+
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
 >> calls wait(C) before C exits?  After C exits?  How do you ensure
 >> that all resources are freed in each case?  How about when P
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
+
+1. As talked above, when P starts to wait for C, it "sema_down" the 
+"sema_wait". Once child C finishes executing, it "sema_up" the "sema_
+wait" so P stops waiting.
+
+2. At the beginning of wait, the parent would find the child process
+based on its pid. If C has already exited, the parent then no longer
+holds C's info. So P will not wait for C.
+
+3. At the end of sys_wait, if the child thread executed successfully,
+the parent then frees resources allocated for the child thread. Also,
+when the sys_exit has been called, at the end all the child processes
+will be destroyed and cleared
+
+4. In our design, if P terminates before C exits, it'll destroy C and 
+free C's resources
+
+5. When P terminates after C exits, P does not wait for C any more, so
+just P terminates normally
+
 
 ---- RATIONALE ----
 
@@ -149,6 +235,8 @@ opened, unclosed files.
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
+
+We did not change it.
 
 			   SURVEY QUESTIONS
 			   ================
