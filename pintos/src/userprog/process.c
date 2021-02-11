@@ -6,6 +6,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
@@ -124,10 +125,11 @@ process_wait (tid_t child_tid)
   /* If wait was successful, this means the child has exited,
      so we can remove it from the child_processes list. */
   if (exit_status != -1)
-  {
-    list_remove (&child_process->elem);
-    free (child_process);
-  }
+    {
+      list_remove (&child_process->elem);
+      free (child_process);
+    }
+  
   return exit_status;
 }
 
