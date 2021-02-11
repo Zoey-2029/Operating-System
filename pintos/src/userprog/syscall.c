@@ -297,6 +297,7 @@ sys_open (const char *file)
   info->file = f;
   list_push_back (&thread_current ()->file_info_list, &info->elem);
   lock_release_filesys ();
+
   return info->fd;
 }
 
@@ -414,7 +415,6 @@ sys_tell (int fd)
 void
 sys_close (int fd)
 {
-  lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
   if (info)
     {
@@ -422,7 +422,6 @@ sys_close (int fd)
       list_remove (&info->elem);
       free (info);
     }
-  lock_release_filesys ();
 }
 
 /* Check if the user pointer is valid.
@@ -470,7 +469,6 @@ free_file_info ()
 {
   struct list_elem *e;
   struct list *l = &thread_current ()->file_info_list;
-  lock_acquire_filesys ();
   for (e = list_begin (l); e != list_end (l);)
     {
       struct file_info *f = list_entry (e, struct file_info, elem);
@@ -481,7 +479,6 @@ free_file_info ()
           free (f);
         }
     }
-  lock_release_filesys ();
 }
 
 static void

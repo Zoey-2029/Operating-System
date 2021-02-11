@@ -159,9 +159,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   if (cur->exec_file) {
-      lock_acquire_filesys ();
       file_close (cur->exec_file);
-      lock_release_filesys ();
   }
   sema_up (&cur->parent->sema_wait);
 }
