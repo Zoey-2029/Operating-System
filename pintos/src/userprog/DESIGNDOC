@@ -294,6 +294,12 @@ just P terminates normally
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
+We choose the first method to access user memory, which is to verify 
+the validity of a user-provided pointer, then dereference it. This method 
+is streaghtforward, and doesn't require assembly code, which makes
+the code more readable. And it is simpler because we can just make use of 
+the functions provided by userprog/pagedir.c and threads/vaddr.h.
+
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
@@ -311,7 +317,6 @@ implement.
 But this requires the program to go through the list to find the file 
 mathing the pid, which could be slow if a process has a large amount of 
 opened, unclosed files.
-
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
