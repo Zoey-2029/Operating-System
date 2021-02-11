@@ -470,19 +470,18 @@ free_file_info ()
 {
   struct list_elem *e;
   struct list *l = &thread_current ()->file_info_list;
-
+  lock_acquire_filesys ();
   for (e = list_begin (l); e != list_end (l);)
     {
       struct file_info *f = list_entry (e, struct file_info, elem);
       e = list_next (e);
       if (f)
         {
-          lock_acquire_filesys ();
-          file_close (f->file);
-          lock_release_filesys ();
+          file_close (f->file);          
           free (f);
         }
     }
+  lock_release_filesys ();
 }
 
 static void
