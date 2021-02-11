@@ -6,6 +6,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
@@ -113,14 +114,22 @@ process_wait (tid_t child_tid)
 {
   struct thread_info *child_process
       = get_child_process (child_tid, &thread_current ()->child_processes);
-  int exit_status;
 
   if (child_process == NULL)
     return -1;
 
   sema_down (&thread_current ()->sema_wait);
-  exit_status = child_process->exit_status;
 
+  int exit_status = child_process->exit_status;
+
+  /* If wait was successful, this means the child has exited,
+     so we can remove it from the child_processes list. */
+  if (exit_status != -1)
+    {
+      list_remove (&child_process->elem);
+      free (child_process);
+    }
+  
   return exit_status;
 }
 
