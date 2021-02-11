@@ -5,8 +5,8 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
-#include "threads/palloc.h"
 #include "threads/malloc.h"
+#include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/gdt.h"
@@ -30,7 +30,8 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name)
 {
-  if (strlen(file_name) > PGSIZE) return TID_ERROR;
+  if (strlen (file_name) > PGSIZE)
+    return TID_ERROR;
   char *fn_copy;
 
   tid_t tid;
@@ -98,7 +99,7 @@ start_process (void *file_name_)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
-  asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g"(&if_) : "memory");
+  asm volatile("movl %0, %%esp; jmp intr_exit" : : "g"(&if_) : "memory");
   NOT_REACHED ();
 }
 
@@ -131,7 +132,7 @@ process_wait (tid_t child_tid)
       list_remove (&child_process->elem);
       free (child_process);
     }
-  
+
   return exit_status;
 }
 
@@ -158,9 +159,10 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  if (cur->exec_file) {
+  if (cur->exec_file)
+    {
       file_close (cur->exec_file);
-  }
+    }
   sema_up (&cur->parent->sema_wait);
 }
 
@@ -590,7 +592,7 @@ setup_arguments_in_stack (const char *file_name)
   /* Push a fake "return address". */
   stack_ptr -= sizeof (void *);
   palloc_free_page (to_free);
-  
+
   return stack_ptr;
 }
 

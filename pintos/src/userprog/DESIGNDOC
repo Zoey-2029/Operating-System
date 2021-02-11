@@ -211,9 +211,10 @@ after thread exiting, such as exit status and tid.
 2. For the main body of the sys_wait, the parent checks if the input tid
 is a valid child, and return -1 if not. Otherwise, it'll  wait on semaphore 
 "sema_wait". 
-3. As dor the child thread, it signals the parent to stop waiting when 
-exiting/terminating. Once parent waked up, it checks the exit_status of the 
-child, and remove/free the child from child_processes
+
+3. As the child thread exits, it signals the parent to stop waiting when 
+exiting/terminating. Once parent woke up, it checks the exit_status of the 
+child, and remove/free the child from child_processes.
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -228,6 +229,20 @@ child, and remove/free the child from child_processes
 >> allocated resources (locks, buffers, etc.) are freed?  In a few
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
+
+1. Our design first check memory validity using "check_memory_validity"
+function. If any address is invalid, we call "sys_exit" to exit. 
+For example, if a program tries to write to 0x10123420,
+which is not a valid user memory location, the check_memory_validity will 
+fail and the program exit with status -1.
+
+2. Then in sys_exit, whenever we try to exit, "free_file_info" and 
+"free_child_processes_info" are called to make sure dynamically allocated
+resources are freed. 
+
+3. If error still happens, we modified exception.c so that if a user program
+causes the exception, e.g. dereferencing NULL, it goes to sys_exit(-1), so 
+the system does not crash and we can proceed to free the allocated resources.
 
 ---- SYNCHRONIZATION ----
 
@@ -301,7 +316,7 @@ opened, unclosed files.
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
-We did not change it.
+We did not change the mapping.
 
 			   SURVEY QUESTIONS
 			   ================

@@ -475,7 +475,7 @@ free_file_info ()
       e = list_next (e);
       if (f)
         {
-          file_close (f->file);          
+          file_close (f->file);
           free (f);
         }
     }
