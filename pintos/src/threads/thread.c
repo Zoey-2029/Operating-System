@@ -37,6 +37,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* Lock to make sure only one process can interact with filesys. */
+static struct lock filesys_lock;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame
 {
@@ -90,6 +93,7 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
+  lock_init (&filesys_lock);
   list_init (&ready_list);
   list_init (&all_list);
 
@@ -562,6 +566,15 @@ thread_schedule_tail (struct thread *prev)
     }
 }
 
+void lock_acquire_filesys ()
+{
+  lock_acquire (&filesys_lock);
+}
+
+void lock_release_filesys ()
+{
+  lock_release (&filesys_lock);
+}
 /* Schedules a new process.  At entry, interrupts must be off and
    the running process's state must have been changed from
    running to some other state.  This function finds another

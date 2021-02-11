@@ -73,8 +73,9 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-
+  lock_acquire_filesys ();
   success = load (file_name, &if_.eip, &if_.esp);
+  lock_release_filesys ();
   palloc_free_page (file_name);
 
   /* Save the load status. */
@@ -156,8 +157,11 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  if (cur->exec_file)
+  if (cur->exec_file) {
+      lock_acquire_filesys ();
       file_close (cur->exec_file);
+      lock_release_filesys ();
+  }
   sema_up (&cur->parent->sema_wait);
 }
 
@@ -294,9 +298,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   char *program_name = strtok_r (fn_copy, " ", &argv);
-
   file = filesys_open (program_name);
-
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", program_name);
