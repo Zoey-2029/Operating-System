@@ -101,8 +101,6 @@ struct thread
     struct thread *parent;              /* Parent process. */ 
     struct list child_processes;        /* List of child processes. */
     struct list file_info_list;         /* List of files opened. */
-    struct semaphore sema_wait;         /* Wait between parent 
-                                           and child process. */
     struct semaphore sema_exec;         /* Execute between parent 
                                            and child process. */
     struct file *exec_file;             /* Executable file. */
@@ -119,6 +117,8 @@ struct thread_info {
     int tid;
     bool load_status;
     int exit_status;                    /* Exit status of thread */
+    struct semaphore sema_wait;         /* Wait between parent 
+                                           and child process. */
     struct list_elem elem;              /* List element for child_processes */
 };
 
