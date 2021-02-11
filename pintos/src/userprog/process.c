@@ -29,6 +29,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name)
 {
+  if (strlen(file_name) > PGSIZE) return TID_ERROR;
   char *fn_copy;
 
   tid_t tid;

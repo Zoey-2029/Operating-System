@@ -9,7 +9,7 @@
 >> Fill in the names and email addresses of your group members.
 
 Jizhen Wang <jzwang43@stanford.edu>
-FirstName LastName <email@domain.example>
+Ziyue Xiao <ziyuex@stanford.edu>
 FirstName LastName <email@domain.example>
 
 ---- PRELIMINARIES ----
@@ -30,19 +30,87 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+No data structures decalred or modified when dealing with argument 
+passing.
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
+We pass the file_name as an argument to setup_arguments_in_stack(char *) 
+we created to deal with argument passing. 
+
+(1) First we made a copy of file_name*, use strtok_r() to tokenize the 
+file_name string, for each token, we push it to the stack right away, 
+update argc and record the address of arguments on the stack in 
+variable argv_pointers.
+
+(*note: when we copy file_name, we call palloc_get_page(). We record 
+the virtual address in variable to_free, and free the page when 
+setup_arguments_in_stack() finishs )
+
+(2) After we push all the tokens in the stack, round the stack pointer 
+down to a multiple of 4 if neccessary, and push a sentinel null 
+pointer before going to next step.
+
+(3) Then push the address of those tokens to the stack. Note in 
+step (2) we push the tokens from left to right, here we have to push 
+the addresses stored in argv_pointers in reverse order. 
+
+(4) Push argv (address of argv[0]) and args to stack.
+
+(5) Push a fake return address. Set the stack pointer (esp) to the 
+address of this fake return address.
+
+Diagram of stack for command line "/bin/ls -l foo bar" looks like this:
+
+-------------------------------------------------
+Address		Name			Data		Type	
+0xbffffff8	argv[0][...]	/bin/ls\0	char[8]
+0xbffffff5	argv[1][...]	-l\0		char[3]
+0xbffffff1	argv[2][...]	foo\0		char[4]
+0xbfffffed	argv[3][...]	bar\0		char[4]
+0xbfffffec	word-align		0			uint8_t
+0xbfffffe8	argv[4]			0			char *
+0xbfffffe4	argv[3]			0xbfffffed	char *
+0xbfffffe0	argv[2]			0xbffffff1	char *
+0xbfffffdc	argv[1]			0xbffffff5	char *
+0xbfffffd8	argv[0]			0xbffffff8	char *
+0xbfffffd4	argv			0xbfffffd8	char **
+0xbfffffd0	argc			4			int
+0xbfffffcc	return address	0			void (*) ()
+--------------------------------------------------
+
+Before we create a new thread for user program, we check the 
+length of command line arguments, makes sure those arguments 
+would fit into a single page (4kB). If not, it is impossible 
+to create the user thread. 
+
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
+strtok_r() is more thread safe. Because in strtok_r() we provide the 
+argument saveptr. If we don't pass the extra saveptr, other threads 
+mightget control and also call strtok_r(), pointers inside strtok_r() 
+may be modified, when the original thread regains control it would 
+pick up where last thread left off. So saveptr makes strtok_r() 
+reentrant and more thread-safe.
+
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
+
+(1) If shell handles the job of separation, the kernel code can be 
+simpler and cleaner.
+
+(2) This will also allow shell to do some sanity check before it 
+actually passed the arguments to kernel, for example, if the command 
+line is super long, it may cause some problem in kernel, and this 
+problem can be avoided if we catch it in the shell program. So shell 
+provides some kind of protection for kernel.
 
 			     SYSTEM CALLS
 			     ============
