@@ -25,9 +25,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-#define CREATED 2
-#define ACIVE 1
-#define KILLED 0
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -122,7 +119,6 @@ struct thread_info {
     int tid;
     bool load_status;
     int exit_status;                    /* Exit status of thread */
-    int curr_status;                    /* Current status of thread */
     struct list_elem elem;              /* List element for child_processes */
 };
 
@@ -161,5 +157,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void lock_release_filesys (void);
+void lock_acquire_filesys (void);
 
 #endif /* threads/thread.h */

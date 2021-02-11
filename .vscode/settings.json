@@ -15,6 +15,7 @@
         "FILESYS.C": "cpp",
         "THREAD.C": "cpp",
         "SYNCH.C": "cpp",
-        "PAGEDIR.C": "cpp"
+        "PAGEDIR.C": "cpp",
+        "malloc.h": "c"
     }
 }

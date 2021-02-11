@@ -16,9 +16,6 @@
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
 
-/* Lock to make sure only one process can interact with filesys. */
-static struct lock filesys_lock;
-
 /* Helper function(s). */
 static void free_file_info (void);
 static void free_child_processes_info (void);
@@ -28,7 +25,6 @@ void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init (&filesys_lock);
 }
 
 static void
@@ -246,27 +242,7 @@ sys_exec (const char *cmd_line)
 int
 sys_wait (pid_t pid)
 {
-  struct thread_info *child_process
-      = get_child_process (pid, &thread_current ()->child_processes);
-  int wait_result;
-
-  /* If pid is not found is parent's children list, return -1. */
-  if (!child_process)
-    {
-      return -1;
-    }
-  
-  wait_result = process_wait (pid);
-
-  /* If wait was successful, this means the child has exited,
-     so we can remove it from the child_processes list. */
-  if (child_process->exit_status != -1)
-    {
-      list_remove (&child_process->elem);
-      free (child_process);
-    }
-
-  return wait_result;
+  return process_wait (pid);
 }
 
 bool
@@ -276,9 +252,9 @@ sys_create (const char *file, unsigned initial_size)
     {
       sys_exit (-1);
     }
-  lock_acquire (&filesys_lock);
+  lock_acquire_filesys ();
   bool success = filesys_create (file, initial_size);
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
 
   return success;
 }
@@ -291,9 +267,9 @@ sys_remove (const char *file)
       sys_exit (-1);
     }
 
-  lock_acquire (&filesys_lock);
+  lock_acquire_filesys ();
   bool success = filesys_remove (file);
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
 
   return success;
 }
@@ -305,23 +281,22 @@ sys_open (const char *file)
     {
       sys_exit (-1);
     }
-
+  lock_acquire_filesys ();
   struct file *f = filesys_open (file);
   struct file_info *info;
 
   if (!f)
     {
+      lock_release_filesys ();
       return -1;
     }
-  lock_acquire (&filesys_lock);
   /* Use file_info struct to map file descriptors to files. */
   info = calloc (1, sizeof (*info));
-  info->fd = thread_current()->fd_count;
-  thread_current()->fd_count += 1;
+  info->fd = thread_current ()->fd_count;
+  thread_current ()->fd_count += 1;
   info->file = f;
   list_push_back (&thread_current ()->file_info_list, &info->elem);
-  lock_release (&filesys_lock);
-
+  lock_release_filesys ();
   return info->fd;
 }
 
@@ -329,13 +304,14 @@ int
 sys_filesize (int fd)
 {
   struct file_info *info = find_file_info (fd);
-  lock_acquire (&filesys_lock);
+  lock_acquire_filesys ();
   if (!info)
     {
+      lock_release_filesys ();
       return -1;
     }
   int size = file_length (info->file);
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
 
   return size;
 }
@@ -359,16 +335,16 @@ sys_read (int fd, void *buffer, unsigned size)
     }
   else
     {
-
+      lock_acquire_filesys ();
       struct file_info *info = find_file_info (fd);
 
       if (!info)
         {
+          lock_release_filesys ();
           return -1;
         }
-      lock_acquire (&filesys_lock);
       bytes_read = file_read (info->file, buffer, size);
-      lock_release (&filesys_lock);
+      lock_release_filesys ();
     }
 
   return bytes_read;
@@ -394,44 +370,43 @@ sys_write (int fd, const void *buffer, unsigned size)
 
       return size;
     }
-
+  lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
 
   if (!info)
     {
+      lock_release_filesys ();
       return -1;
     }
-  lock_acquire (&filesys_lock);
   off_t bytes_written = file_write (info->file, buffer, size);
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
   return bytes_written;
 }
 
 void
 sys_seek (int fd, unsigned position)
 {
+  lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
-  lock_acquire (&filesys_lock);
   if (info)
     {
       file_seek (info->file, position);
     }
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
 }
 
 unsigned
 sys_tell (int fd)
 {
-
+  lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
-
   if (!info)
     {
+      lock_release_filesys ();
       return -1;
     }
-  lock_acquire (&filesys_lock);
   off_t position = file_tell (info->file);
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
 
   return position;
 }
@@ -439,16 +414,15 @@ sys_tell (int fd)
 void
 sys_close (int fd)
 {
-
+  lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
-  lock_acquire (&filesys_lock);
   if (info)
     {
       file_close (info->file);
       list_remove (&info->elem);
       free (info);
     }
-  lock_release (&filesys_lock);
+  lock_release_filesys ();
 }
 
 /* Check if the user pointer is valid.
@@ -503,7 +477,9 @@ free_file_info ()
       e = list_next (e);
       if (f)
         {
+          lock_acquire_filesys ();
           file_close (f->file);
+          lock_release_filesys ();
           free (f);
         }
     }
