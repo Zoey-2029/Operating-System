@@ -410,6 +410,7 @@ sys_tell (int fd)
 void
 sys_close (int fd)
 {
+  lock_acquire_filesys();
   struct file_info *info = find_file_info (fd);
   if (info)
     {
@@ -417,6 +418,7 @@ sys_close (int fd)
       list_remove (&info->elem);
       free (info);
     }
+  lock_release_filesys();
 }
 
 /* Check if the user pointer is valid.
@@ -465,6 +467,7 @@ find_file_info (int fd)
 static void
 free_file_info ()
 {
+  lock_acquire_filesys();
   struct list_elem *e;
   struct list *l = &thread_current ()->file_info_list;
   for (e = list_begin (l); e != list_end (l);)
@@ -477,6 +480,7 @@ free_file_info ()
           free (f);
         }
     }
+  lock_release_filesys();
 }
 
 static void

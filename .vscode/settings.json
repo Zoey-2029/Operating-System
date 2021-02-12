@@ -16,6 +16,10 @@
         "THREAD.C": "cpp",
         "SYNCH.C": "cpp",
         "PAGEDIR.C": "cpp",
-        "malloc.h": "c"
+        "malloc.h": "c",
+        "syn-read.h": "c",
+        "BLOCK.C": "cpp",
+        "DEBUG.C": "cpp",
+        "DIRECTORY.C": "cpp"
     }
 }

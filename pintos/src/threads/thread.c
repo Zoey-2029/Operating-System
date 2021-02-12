@@ -195,6 +195,7 @@ thread_create (const char *name, int priority, thread_func *function,
   info->load_status = false;
   info->tid = t->tid;
   info->exit_status = 0;
+  sema_init (&info->sema_wait, 0);
   list_push_back (&thread_current ()->child_processes, &info->elem);
 #endif
 
@@ -481,7 +482,6 @@ init_thread (struct thread *t, const char *name, int priority)
 
 #ifdef USERPROG
   /* Data structures related to user program. */
-  sema_init (&t->sema_wait, 0);
   sema_init (&t->sema_exec, 0);
   list_init (&t->child_processes);
   list_init (&t->file_info_list);

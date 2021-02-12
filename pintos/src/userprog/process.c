@@ -121,7 +121,7 @@ process_wait (tid_t child_tid)
   if (child_process == NULL)
     return -1;
 
-  sema_down (&thread_current ()->sema_wait);
+  sema_down (&child_process->sema_wait);
 
   int exit_status = child_process->exit_status;
 
@@ -161,9 +161,13 @@ process_exit (void)
     }
   if (cur->exec_file)
     {
+      lock_acquire_filesys ();
       file_close (cur->exec_file);
+      lock_release_filesys ();
     }
-  sema_up (&cur->parent->sema_wait);
+  struct thread_info *info = get_child_process (
+      thread_current ()->tid, &thread_current ()->parent->child_processes);
+  sema_up (&info->sema_wait);
 }
 
 /* Sets up the CPU for running user code in the current
