@@ -201,6 +201,23 @@ our file descriptors in the similar way.
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
 
+(1) for a full page data:
+The least number is 1 because it is possible to accommodate the data 
+in a single page. The greated number might be 4096 if the data is not
+continuous, in which case we have to make sure every virtual address
+is valid. When the data is stored continuously, the greated number is 
+2, and we only need to guarantee the validity of the started pointer 
+and the end pointer for that page. In our design, we call function
+check_memory_validity() to make sure every virtual address is valid.
+
+(2) for 2 bytes of data:
+The least number is 1 if the two bytes are in the same page. The 
+greatest number is 2 no matter it is continuous or not. 
+
+(3) improvements:
+If we can make data layout continuous, we can avoid the situation that
+the maximum number of inspection is 4096. 
+
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
 
