@@ -131,8 +131,6 @@ struct list child_processes;        /* List of child processes. */
 struct list file_info_list;         /* List of files opened. */
 struct semaphore sema_wait;         /* Wait between parent 
 										and child process. */
-struct semaphore sema_exec;         /* Execute between parent 
-										and child process. */
 struct file *exec_file;             /* Executable file. */
 int fd_count;
 #endif
@@ -151,6 +149,8 @@ struct thread_info {
     int tid;
     bool load_status;
     int exit_status;                    /* Exit status of thread */
+	struct semaphore sema_exec;         /* Execute between parent 
+										   and child process. */
     struct list_elem elem;              /* List element for child_processes */
 };
 
@@ -194,12 +194,35 @@ our file descriptors in the similar way.
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
 
+For both read and wirte, we always use "check_memory_validity" to make 
+sure the memory locations to read and write from are valid. 
+If not, we exit with -1.
+
+If the file descriptor is STDIN or STDOUT, the program reads and writes
+from consoleu using either "putbuf" or "input_getc".
+
+Otherwise, we try to find the file corresponding to the fd.
+If file cannot be found, the program exits with -1. Then call either 
+"filesys_read" or "file_write" to perform the task. Filesys lock is 
+acquired during file read or write to make sure no synchronization issue.
+
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
 >> and the greatest possible number of inspections of the page table
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
+
+Since we are checking the memory validity using pagedir_get_page() for 
+each byte, the min and max will always be the number of bytes of data.
+
+The min and max for a full page of data are both 4096.
+
+The min and max for 2 bytes of data are both 2.
+
+There is room for improvement, it's possible that contiguous bytes on 
+the same page only need on be checked by pagedir_get_page once instead 
+of one each byte.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
@@ -281,7 +304,7 @@ holds C's info. So P will not wait for C.
 3. At the end of sys_wait, if the child thread executed successfully,
 the parent then frees resources allocated for the child thread. Also,
 when the sys_exit has been called, at the end all the child processes
-will be destroyed and cleared
+will be destroyed and cleared.
 
 4. In our design, if P terminates before C exits, it'll destroy C and 
 free C's resources
