@@ -20,6 +20,13 @@
         "syn-read.h": "c",
         "BLOCK.C": "cpp",
         "DEBUG.C": "cpp",
-        "DIRECTORY.C": "cpp"
+        "DIRECTORY.C": "cpp",
+        "frame.h": "c",
+        "PALLOC.C": "cpp",
+        "palloc.h": "c",
+        "interrupt.h": "c",
+        "BOUNDARY.C": "cpp",
+        "frame_table.h": "c",
+        "stdio.h": "c"
     }
 }

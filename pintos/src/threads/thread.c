@@ -6,6 +6,7 @@
 #include "threads/switch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "vm/page_table.h"
 #include <debug.h>
 #include <random.h>
 #include <stddef.h>
@@ -187,7 +188,7 @@ thread_create (const char *name, int priority, thread_func *function,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  
+
 #ifdef USERPROG
   /* Initialize thread_info and insert into parent's child_processes. */
   t->parent = thread_current ();
@@ -479,6 +480,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init (&t->page_table);
 
 #ifdef USERPROG
   /* Data structures related to user program. */
@@ -566,13 +568,23 @@ thread_schedule_tail (struct thread *prev)
     }
 }
 
-void lock_acquire_filesys ()
+void
+lock_acquire_filesys ()
 {
+  if (lock_held_by_current_thread (&filesys_lock))
+    {
+      return;
+    }
   lock_acquire (&filesys_lock);
 }
 
-void lock_release_filesys ()
+void
+lock_release_filesys ()
 {
+  if (!lock_held_by_current_thread (&filesys_lock))
+    {
+      return;
+    }
   lock_release (&filesys_lock);
 }
 /* Schedules a new process.  At entry, interrupts must be off and

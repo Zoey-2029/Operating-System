@@ -1,10 +1,12 @@
 #include "userprog/exception.h"
-#include <inttypes.h>
-#include <stdio.h>
-#include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "userprog/gdt.h"
 #include "userprog/syscall.h"
+#include "vm/frame_table.h"
+#include "vm/page_table.h"
+#include <inttypes.h>
+#include <stdio.h>
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -28,7 +30,7 @@ static void page_fault (struct intr_frame *);
    Refer to [IA32-v3a] section 5.15 "Exception and Interrupt
    Reference" for a description of each of these exceptions. */
 void
-exception_init (void) 
+exception_init (void)
 {
   /* These exceptions can be raised explicitly by a user program,
      e.g. via the INT, INT3, INTO, and BOUND instructions.  Thus,
@@ -63,14 +65,14 @@ exception_init (void)
 
 /* Prints exception statistics. */
 void
-exception_print_stats (void) 
+exception_print_stats (void)
 {
   printf ("Exception: %lld page faults\n", page_fault_cnt);
 }
 
 /* Handler for an exception (probably) caused by a user process. */
 static void
-kill (struct intr_frame *f) 
+kill (struct intr_frame *f)
 {
   /* This interrupt is one (probably) caused by a user process.
      For example, the process might have tried to access unmapped
@@ -79,7 +81,7 @@ kill (struct intr_frame *f)
      the kernel.  Real Unix-like operating systems pass most
      exceptions back to the process via signals, but we don't
      implement them. */
-     
+
   /* The interrupt frame's code segment value tells us where the
      exception originated. */
   switch (f->cs)
@@ -87,10 +89,10 @@ kill (struct intr_frame *f)
     case SEL_UCSEG:
       /* User's code segment, so it's a user exception, as we
          expected.  Kill the user process.  */
-      printf ("%s: dying due to interrupt %#04x (%s).\n",
-              thread_name (), f->vec_no, intr_name (f->vec_no));
+      printf ("%s: dying due to interrupt %#04x (%s).\n", thread_name (),
+              f->vec_no, intr_name (f->vec_no));
       intr_dump_frame (f);
-      thread_exit (); 
+      thread_exit ();
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.
@@ -98,13 +100,13 @@ kill (struct intr_frame *f)
          may cause kernel exceptions--but they shouldn't arrive
          here.)  Panic the kernel to make the point.  */
       intr_dump_frame (f);
-      PANIC ("Kernel bug - unexpected interrupt in kernel"); 
+      PANIC ("Kernel bug - unexpected interrupt in kernel");
 
     default:
       /* Some other code segment?  Shouldn't happen.  Panic the
          kernel. */
-      printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
-             f->vec_no, intr_name (f->vec_no), f->cs);
+      printf ("Interrupt %#04x (%s) in unknown segment %04x\n", f->vec_no,
+              intr_name (f->vec_no), f->cs);
       thread_exit ();
     }
 }
@@ -121,12 +123,12 @@ kill (struct intr_frame *f)
    description of "Interrupt 14--Page Fault Exception (#PF)" in
    [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
 static void
-page_fault (struct intr_frame *f) 
+page_fault (struct intr_frame *f)
 {
-  bool not_present;  /* True: not-present page, false: writing r/o page. */
-  bool write;        /* True: access was write, false: access was read. */
-  bool user;         /* True: access by user, false: access by kernel. */
-  void *fault_addr;  /* Fault address. */
+  bool not_present; /* True: not-present page, false: writing r/o page. */
+  bool write;       /* True: access was write, false: access was read. */
+  bool user;        /* True: access by user, false: access by kernel. */
+  void *fault_addr; /* Fault address. */
 
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
@@ -135,7 +137,7 @@ page_fault (struct intr_frame *f)
      See [IA32-v2a] "MOV--Move to/from Control Registers" and
      [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
      (#PF)". */
-  asm ("movl %%cr2, %0" : "=r" (fault_addr));
+  asm("movl %%cr2, %0" : "=r"(fault_addr));
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
@@ -148,20 +150,66 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-  
-  /* Exit user thread if caused by user. */
+
   if (user)
     {
-      sys_exit (-1);
+      // printf ("f: %p , fault: %p\n", f->esp, fault_addr);
+      /* Validate the address. */
+      if (fault_addr == NULL || fault_addr >= PHYS_BASE
+          || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
+        {
+          /* Exit user thread if truly invalid. */
+          sys_exit (-1);
+        }
+      else
+        {
+          struct sup_page_table_entry *entry = find_in_table (fault_addr);
+          if (entry != NULL)
+            {
+              /* A lot to do here. */
+              if (write && entry->read_only)
+                {
+                  // printf("try to write to read-only\n");
+                  sys_exit (-1);
+                }
+            }
+          /* If valid, install the frame. */
+          //  printf ("valid address, need to install new frame\n");
+          void *kpage = allocate_frame ();
+          if (kpage != NULL)
+            {
+              void *upage = pg_round_down (fault_addr);
+              bool writable = true;
+              bool success = pagedir_set_page (thread_current ()->pagedir,
+                                               upage, kpage, writable);
+              if (success)
+                {
+                  /* Create entry in supplemental page table. */
+                  // printf ("install success %p\n", upage);
+                  install_page_supplemental (upage);
+                  return;
+                }
+              else
+                {
+                  // printf ("install failed\n");
+                  free_frame (kpage);
+                  sys_exit (-1);
+                }
+            }
+          else
+            {
+              // printf ("allocate failed\n");
+              free_frame (kpage);
+              sys_exit (-1);
+            }
+        }
     }
+
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
+  printf ("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
           not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
+          write ? "writing" : "reading", user ? "user" : "kernel");
   kill (f);
 }
-
