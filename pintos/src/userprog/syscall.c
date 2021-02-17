@@ -8,6 +8,7 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/exception.h"
 #include "userprog/pagedir.h"
 #include "vm/page_table.h"
 #include <console.h>
@@ -23,7 +24,7 @@ static struct file_info *find_file_info (int fd);
 /* Helper function(s). */
 static void free_file_info (void);
 static void free_child_processes_info (void);
-static bool check_memory_validity (const void *addr, unsigned size);
+static bool check_memory_validity (const void *, unsigned, void *);
 static void free_page_table (void);
 
 void
@@ -35,9 +36,8 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f)
 {
-  if (!check_memory_validity (f->esp, 1 * sizeof (int *)))
+  if (!check_memory_validity (f->esp, 1 * sizeof (int *), NULL))
     sys_exit (-1);
-
   /* Number of args to check validity. */
   unsigned args = 0;
   switch (*(int *)f->esp)
@@ -45,7 +45,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_HALT:
       {
         args = 0;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         sys_halt ();
@@ -55,7 +56,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXIT:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         int status = *((int *)f->esp + 1);
@@ -66,10 +68,14 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXEC:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         const char *cmd_line = (void *)(*((int *)f->esp + 1));
+        if (!check_memory_validity (cmd_line, sizeof (char *), f->esp)
+            || !check_memory_validity (cmd_line, strlen (cmd_line), f->esp))
+          sys_exit (-1);
         f->eax = sys_exec (cmd_line);
         break;
       }
@@ -77,7 +83,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         pid_t pid = *((pid_t *)f->esp + 1);
@@ -88,11 +95,14 @@ syscall_handler (struct intr_frame *f)
     case SYS_CREATE:
       {
         args = 2;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
         unsigned initial_size = *((unsigned *)f->esp + 2);
+        if (!check_memory_validity (file, initial_size, f->esp))
+          sys_exit (-1);
         f->eax = sys_create (file, initial_size);
         break;
       }
@@ -100,10 +110,13 @@ syscall_handler (struct intr_frame *f)
     case SYS_REMOVE:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
+        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp))
+          sys_exit (-1);
         f->eax = sys_remove (file);
         break;
       }
@@ -111,10 +124,13 @@ syscall_handler (struct intr_frame *f)
     case SYS_OPEN:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
+        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp))
+          sys_exit (-1);
         f->eax = sys_open (file);
         break;
       }
@@ -122,7 +138,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_FILESIZE:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -133,12 +150,16 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:
       {
         args = 3;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
-
         int fd = *((int *)f->esp + 1);
         void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
+        if (buffer < (void *)f->eip)
+          sys_exit (-1);
+        if (!check_memory_validity (buffer, size, f->esp))
+          sys_exit (-1);
         f->eax = sys_read (fd, buffer, size);
         break;
       }
@@ -146,12 +167,15 @@ syscall_handler (struct intr_frame *f)
     case SYS_WRITE:
       {
         args = 3;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
         const void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
+        if (!check_memory_validity (buffer, size, f->esp))
+          sys_exit (-1);
         f->eax = sys_write (fd, buffer, size);
         break;
       }
@@ -159,7 +183,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_SEEK:
       {
         args = 2;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -171,7 +196,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_TELL:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -182,7 +208,8 @@ syscall_handler (struct intr_frame *f)
     case SYS_CLOSE:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -225,10 +252,6 @@ sys_exit (int status)
 pid_t
 sys_exec (const char *cmd_line)
 {
-  if (!check_memory_validity (cmd_line, sizeof (char *))
-      || !check_memory_validity (cmd_line, strlen (cmd_line)))
-    sys_exit (-1);
-
   pid_t child_pid = process_execute (cmd_line);
 
   /* Wait for child process loading. */
@@ -253,8 +276,6 @@ sys_wait (pid_t pid)
 bool
 sys_create (const char *file, unsigned initial_size)
 {
-  if (!check_memory_validity (file, initial_size))
-    sys_exit (-1);
 
   lock_acquire_filesys ();
   bool success = filesys_create (file, initial_size);
@@ -266,8 +287,6 @@ sys_create (const char *file, unsigned initial_size)
 bool
 sys_remove (const char *file)
 {
-  if (!check_memory_validity (file, MAX_FILE_SIZE))
-    sys_exit (-1);
 
   lock_acquire_filesys ();
   bool success = filesys_remove (file);
@@ -279,8 +298,6 @@ sys_remove (const char *file)
 int
 sys_open (const char *file)
 {
-  if (!check_memory_validity (file, MAX_FILE_SIZE))
-    sys_exit (-1);
 
   lock_acquire_filesys ();
   struct file *f = filesys_open (file);
@@ -323,9 +340,6 @@ sys_filesize (int fd)
 int
 sys_read (int fd, void *buffer, unsigned size)
 {
-  if (!check_memory_validity (buffer, size))
-    sys_exit (-1);
-
   unsigned bytes_read = 0;
 
   if (fd == STDIN_FILENO)
@@ -353,8 +367,6 @@ sys_read (int fd, void *buffer, unsigned size)
 int
 sys_write (int fd, const void *buffer, unsigned size)
 {
-  if (!check_memory_validity (buffer, size))
-    sys_exit (-1);
 
   /* Write to console and break the buffer to 200-byte chunks. */
   if (fd == STDOUT_FILENO)
@@ -428,9 +440,10 @@ sys_close (int fd)
    virtual_addr: the first pointer.
    size: number of pointers to check validity. */
 static bool
-check_memory_validity (const void *virtual_addr, unsigned size)
+check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
 {
   // at least check one pointer
+  // printf ("virtual_addr %p\n", virtual_addr);
   if (size == 0)
     size = 1;
   for (unsigned i = 0; i < size; i++)
@@ -443,9 +456,17 @@ check_memory_validity (const void *virtual_addr, unsigned size)
        a pointer to unmapped virtual memory.  */
       if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr)
           || !pagedir_get_page (thread_current ()->pagedir, addr))
-        return false;
+        {
+          if (esp && esp <= addr)
+            {
+              // printf("fault above esp\n");
+              grow_stack (addr);
+              continue;
+            }
+          return false;
+        }
     }
-
+  // printf ("passes\n");
   return true;
 }
 

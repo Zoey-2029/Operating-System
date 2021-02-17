@@ -153,7 +153,7 @@ page_fault (struct intr_frame *f)
 
   if (user)
     {
-      // printf ("f: %p , fault: %p\n", f->esp, fault_addr);
+      // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
       /* Validate the address. */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
@@ -173,35 +173,14 @@ page_fault (struct intr_frame *f)
                   sys_exit (-1);
                 }
             }
+         
           /* If valid, install the frame. */
-          //  printf ("valid address, need to install new frame\n");
-          void *kpage = allocate_frame ();
-          if (kpage != NULL)
-            {
-              void *upage = pg_round_down (fault_addr);
-              bool writable = true;
-              bool success = pagedir_set_page (thread_current ()->pagedir,
-                                               upage, kpage, writable);
-              if (success)
-                {
-                  /* Create entry in supplemental page table. */
-                  // printf ("install success %p\n", upage);
-                  install_page_supplemental (upage);
-                  return;
-                }
-              else
-                {
-                  // printf ("install failed\n");
-                  free_frame (kpage);
-                  sys_exit (-1);
-                }
-            }
-          else
-            {
-              // printf ("allocate failed\n");
-              free_frame (kpage);
-              sys_exit (-1);
-            }
+         //  printf ("valid address, need to install new frame\n");
+          if (grow_stack (fault_addr)) {
+             return;
+          } else {
+             sys_exit(-1);
+          }
         }
     }
 
@@ -212,4 +191,36 @@ page_fault (struct intr_frame *f)
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading", user ? "user" : "kernel");
   kill (f);
+}
+
+bool
+grow_stack (const void *fault_addr)
+{
+  void *kpage = allocate_frame ();
+  if (kpage != NULL)
+    {
+      void *upage = pg_round_down (fault_addr);
+      bool writable = true;
+      bool success = pagedir_set_page (thread_current ()->pagedir, upage,
+                                       kpage, writable);
+      if (success)
+        {
+          /* Create entry in supplemental page table. */
+         //  printf ("install success %p\n", upage);
+          install_page_supplemental (upage);
+          return true;
+        }
+      else
+        {
+         //  printf ("install failed\n");
+          free_frame (kpage);
+          return false;
+        }
+    }
+  else
+    {
+      // printf ("allocate failed\n");
+      free_frame (kpage);
+      return false;
+    }
 }
