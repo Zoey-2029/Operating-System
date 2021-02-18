@@ -454,16 +454,24 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
        a pointer below the code segment
        a pointer to kernel virtual address space,
        a pointer to unmapped virtual memory.  */
-      if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr)
-          || !pagedir_get_page (thread_current ()->pagedir, addr))
+      if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
         {
+          return false;
+        }
+      if (!pagedir_get_page (thread_current ()->pagedir, addr))
+        {
+          /* If page not found but addr is above esp,
+             we need to allocate memory. */
           if (esp && esp <= addr)
             {
               // printf("fault above esp\n");
               grow_stack (addr);
               continue;
             }
-          return false;
+          else
+            {
+              return false;
+            }
         }
     }
   // printf ("passes\n");
