@@ -3,10 +3,10 @@
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
-#include "vm/frame_table.h"
-#include "vm/page_table.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include "vm/frame_table.h"
+#include "vm/page_table.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -191,36 +191,4 @@ page_fault (struct intr_frame *f)
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading", user ? "user" : "kernel");
   kill (f);
-}
-
-bool
-grow_stack (const void *fault_addr)
-{
-  void *kpage = allocate_frame ();
-  if (kpage != NULL)
-    {
-      void *upage = pg_round_down (fault_addr);
-      bool writable = true;
-      bool success = pagedir_set_page (thread_current ()->pagedir, upage,
-                                       kpage, writable);
-      if (success)
-        {
-          /* Create entry in supplemental page table. */
-         //  printf ("install success %p\n", upage);
-          install_page_supplemental (upage);
-          return true;
-        }
-      else
-        {
-         //  printf ("install failed\n");
-          free_frame (kpage);
-          return false;
-        }
-    }
-  else
-    {
-      // printf ("allocate failed\n");
-      free_frame (kpage);
-      return false;
-    }
 }

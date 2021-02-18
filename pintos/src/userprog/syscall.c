@@ -10,10 +10,11 @@
 #include "threads/vaddr.h"
 #include "userprog/exception.h"
 #include "userprog/pagedir.h"
-#include "vm/page_table.h"
 #include <console.h>
 #include <string.h>
 #include <syscall-nr.h>
+#include "vm/frame_table.h"
+#include "vm/page_table.h"
 #define MAX_WRITE_CHUNK 200
 
 #define MAX_FILE_SIZE 14
@@ -543,5 +544,37 @@ free_page_table ()
       list_remove (e);
       free (entry);
       e = next;
+    }
+}
+
+bool
+grow_stack (const void *fault_addr)
+{
+  void *kpage = allocate_frame ();
+  if (kpage != NULL)
+    {
+      void *upage = pg_round_down (fault_addr);
+      bool writable = true;
+      bool success = pagedir_set_page (thread_current ()->pagedir, upage,
+                                       kpage, writable);
+      if (success)
+        {
+          /* Create entry in supplemental page table. */
+         //  printf ("install success %p\n", upage);
+          install_page_supplemental (upage);
+          return true;
+        }
+      else
+        {
+         //  printf ("install failed\n");
+          free_frame (kpage);
+          return false;
+        }
+    }
+  else
+    {
+      // printf ("allocate failed\n");
+      free_frame (kpage);
+      return false;
     }
 }

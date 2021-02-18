@@ -5,7 +5,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
-#include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -35,5 +34,6 @@ int sys_write (int fd, const void *buffer, unsigned size);
 void sys_seek (int fd, unsigned position);
 unsigned sys_tell (int fd);
 void sys_close (int fd);
+bool grow_stack (const void *fault_addr);
 
 #endif /* userprog/syscall.h */

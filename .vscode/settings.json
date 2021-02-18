@@ -27,6 +27,7 @@
         "interrupt.h": "c",
         "BOUNDARY.C": "cpp",
         "frame_table.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "page_table.h": "c"
     }
 }

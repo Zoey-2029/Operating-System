@@ -1,5 +1,5 @@
 #include "vm/frame_table.h"
-#include "vm/page_table.h"
+
 /* A list of frame_table_entry as the frame table. */
 static struct list frame_table;
 static struct lock f_lock;

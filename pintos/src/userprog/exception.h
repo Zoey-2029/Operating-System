@@ -10,5 +10,4 @@
 
 void exception_init (void);
 void exception_print_stats (void);
-bool grow_stack (const void *fault_addr);
 #endif /* userprog/exception.h */
