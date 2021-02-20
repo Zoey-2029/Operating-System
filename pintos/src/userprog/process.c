@@ -12,7 +12,6 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
-#include "vm/frame_table.h"
 #include "vm/page_table.h"
 #include <debug.h>
 #include <inttypes.h>
@@ -500,8 +499,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
           free_frame (kpage);
           return false;
         }
-      struct sup_page_table_entry *entry = install_page_supplemental (upage);
-      entry->read_only = true;
+      //struct sup_page_table_entry *entry = install_page_supplemental (upage);
+      //entry->read_only = true;
+      install_page_supplemental (upage);
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
@@ -525,7 +525,7 @@ setup_stack (void **esp, const char *file_name)
       if (success)
         {
           // set up the argument in stack
-          install_page_supplemental (((uint8_t *)PHYS_BASE) - PGSIZE);
+          //install_page_supplemental (((uint8_t *)PHYS_BASE) - PGSIZE);
           *esp = setup_arguments_in_stack (file_name);
         }
       else
@@ -620,5 +620,6 @@ install_page (void *upage, void *kpage, bool writable)
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+          && pagedir_set_page (t->pagedir, upage, kpage, writable)
+          && install_page_supplemental (upage));
 }

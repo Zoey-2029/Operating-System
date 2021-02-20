@@ -6,7 +6,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "vm/frame_table.h"
-#include "vm/page_table.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -163,6 +162,7 @@ page_fault (struct intr_frame *f)
         }
       else
         {
+          bool success = false;
           struct sup_page_table_entry *entry = find_in_table (fault_addr);
           if (entry != NULL)
             {

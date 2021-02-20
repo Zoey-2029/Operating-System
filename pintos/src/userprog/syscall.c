@@ -14,7 +14,6 @@
 #include <string.h>
 #include <syscall-nr.h>
 #include "vm/frame_table.h"
-#include "vm/page_table.h"
 #define MAX_WRITE_CHUNK 200
 
 #define MAX_FILE_SIZE 14
