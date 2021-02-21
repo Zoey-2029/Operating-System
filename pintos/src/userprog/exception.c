@@ -150,28 +150,42 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+  printf ("============In page fault handler============\n");
+  printf ("User: %d\n", user);
+  printf ("Write: %d\n", write);
+  printf ("Not present: %d\n", not_present);
+
+  bool success = false;
   if (user)
     {
-      // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
+      printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
       /* Validate the address. */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
         {
-          /* Exit user thread if truly invalid. */
+          // Exit user thread if truly invalid. 
+          printf ("============Page truly invalid============\n");
+          printf ("fault_addr == NULL: %d\n", fault_addr == NULL);
+          printf ("fault_addr >= PHYS_BASE: %d\n", fault_addr >= PHYS_BASE);
+          printf ("fault_addr < (void *)0x08048000: %d\n", fault_addr < (void *)0x08048000);
+          printf ("fault_addr < f->esp - 32: %d\n", fault_addr < f->esp - 32);
           sys_exit (-1);
         }
       else
         {
-          bool success = false;
-          struct sup_page_table_entry *entry = find_in_table (fault_addr);
-          if (entry != NULL)
+          struct sup_page_table_entry *spte = find_in_table (fault_addr);
+          if (spte != NULL)
             {
+              printf ("Cannot access sup page table\n");
               /* A lot to do here. */
-              if (write && entry->read_only)
+              /*if (write && spte->read_only)
                 {
                   // printf("try to write to read-only\n");
                   sys_exit (-1);
                 }
+              */
+
+                success = load_page_from_file(spte);
             }
          
           /* If valid, install the frame. */
@@ -184,6 +198,7 @@ page_fault (struct intr_frame *f)
         }
     }
 
+    if (success) return;
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
      which fault_addr refers. */

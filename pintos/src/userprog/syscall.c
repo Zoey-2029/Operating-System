@@ -533,7 +533,7 @@ free_child_processes_info ()
 static void
 free_page_table ()
 {
-  struct list *l = &thread_current ()->page_table;
+  struct list *l = &thread_current ()->sup_page_table;
   struct list_elem *e;
   for (e = list_begin (l); e != list_end (l);)
     {
@@ -549,13 +549,14 @@ free_page_table ()
 bool
 grow_stack (const void *fault_addr)
 {
-  void *kpage = allocate_frame ();
-  if (kpage != NULL)
+  struct frame_table_entry *fte = allocate_frame ();
+  //void *kpage = allocate_frame ();
+  if (fte->frame != NULL)
     {
       void *upage = pg_round_down (fault_addr);
       bool writable = true;
       bool success = pagedir_set_page (thread_current ()->pagedir, upage,
-                                       kpage, writable);
+                                       fte->frame, writable);
       if (success)
         {
           /* Create entry in supplemental page table. */
@@ -566,14 +567,14 @@ grow_stack (const void *fault_addr)
       else
         {
          //  printf ("install failed\n");
-          free_frame (kpage);
+          free_frame_by_fte (fte);
           return false;
         }
     }
   else
     {
       // printf ("allocate failed\n");
-      free_frame (kpage);
+      free_frame_by_fte (fte);
       return false;
     }
 }

@@ -480,7 +480,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  list_init (&t->page_table);
+  list_init (&t->sup_page_table);
 
 #ifdef USERPROG
   /* Data structures related to user program. */

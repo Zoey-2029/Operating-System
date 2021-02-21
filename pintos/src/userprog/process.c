@@ -12,7 +12,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
-#include "vm/page_table.h"
+#include "vm/frame_table.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
@@ -39,13 +39,15 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = allocate_frame ();
+  struct frame_table_entry * fte = allocate_frame ();
+  fn_copy = fte->frame;
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Process the command line and pass arguments to thread */
-  char *fn_copy_2 = allocate_frame ();
+  struct frame_table_entry * fte2 = allocate_frame ();
+  char *fn_copy_2 = fte2->frame;
   if (fn_copy_2 == NULL)
     return TID_ERROR;
   char *to_free = fn_copy_2;
@@ -55,9 +57,9 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
-  free_frame (to_free);
+  free_frame_by_fte (fte2);
   if (tid == TID_ERROR)
-    free_frame (fn_copy);
+    free_frame_by_fte (fte);
 
   return tid;
 }
@@ -296,7 +298,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Process file_name to get the executables file name
      Open executable file. */
-  char *fn_copy = allocate_frame ();
+  struct frame_table_entry *fte = allocate_frame ();
+  char *fn_copy = fte->frame;
   if (fn_copy == NULL)
     return false;
   char *to_free = fn_copy;
@@ -472,6 +475,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   file_seek (file, ofs);
+  intr_enable ();
+  printf ("============In load_segment============\n");
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -480,34 +485,46 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
-      uint8_t *kpage = allocate_frame ();
+      printf ("Creating sup ppage table for upage %d...\n", upage);
+      struct sup_page_table_entry *spte = allocate_page_from_file(file, ofs, upage, page_read_bytes, page_zero_bytes, writable);
+      if (spte == NULL){
+        printf("spte is NULL\n");
+        return false;
+      }
+      list_push_back (&thread_current()->sup_page_table, &spte->elem);
+      printf ("Creating sup page table succeed...\n");
+  
+      // Get a page of memory. 
+      /*struct frame_table_entry *fte = allocate_frame ();
+      uint8_t *kpage = fte->frame;
       if (kpage == NULL)
         return false;
 
-      /* Load this page. */
+      // Load this page. 
       if (file_read (file, kpage, page_read_bytes) != (int)page_read_bytes)
         {
-          free_frame (kpage);
+          free_frame_by_fte (fte);
           return false;
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
-      /* Add the page to the process's address space. */
+      // Add the page to the process's address space. 
       if (!install_page (upage, kpage, writable))
         {
-          free_frame (kpage);
+          free_frame_by_fte (fte);
           return false;
         }
       //struct sup_page_table_entry *entry = install_page_supplemental (upage);
       //entry->read_only = true;
       install_page_supplemental (upage);
-      /* Advance. */
+      */
+      // Advance. 
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
   return true;
+  
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -518,7 +535,8 @@ setup_stack (void **esp, const char *file_name)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = allocate_frame ();
+  struct frame_table_entry *fte = allocate_frame ();
+  kpage = fte->frame;
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
@@ -530,7 +548,7 @@ setup_stack (void **esp, const char *file_name)
         }
       else
         {
-          free_frame (kpage);
+          free_frame_by_fte (fte);
         }
     }
   return success;
@@ -543,7 +561,8 @@ setup_arguments_in_stack (const char *file_name)
 {
 
   // first copy argv to argv_copy
-  char *fn_copy = allocate_frame ();
+  struct frame_table_entry *fte = allocate_frame ();
+  char *fn_copy = fte->frame;
   char *to_free = fn_copy;
   if (fn_copy == NULL)
     return PHYS_BASE;

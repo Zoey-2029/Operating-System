@@ -11,6 +11,47 @@ frame_table_init ()
   list_init (&frame_table);
 }
 
+struct frame_table_entry *allocate_frame (void){
+  lock_acquire (&f_lock);
+  struct thread *cur = thread_current ();
+  void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
+  struct frame_table_entry * fte;
+
+  //If cannot get a page, evict one
+  if (kpage == NULL){
+    fte = evict_frame();
+    //size_t index = swap_out(victim->frame);
+		//victim->spte->loaded = false;
+		//victim->spte->source = SWAP;
+		//victim->spte->index = index;
+		pagedir_clear_page(fte->owner->pagedir, fte->spte->user_vaddr);
+
+    free(fte->spte);
+    //victim->spte = NULL;
+  }
+  else{
+    fte = calloc (1, sizeof *fte);
+    fte->frame = kpage;
+    //frame_table_entry->spte = NULL;
+  }
+  
+  fte->owner = cur;
+  list_push_back (&frame_table, &fte->elem);
+  lock_release (&f_lock);
+  return fte;
+}
+
+void free_frame_by_fte (struct frame_table_entry *fte){
+  ASSERT(fte != NULL);
+  lock_acquire (&f_lock);
+
+  palloc_free_page (fte->frame);
+  list_remove (&fte->elem);
+  free (fte);
+
+  lock_release (&f_lock);
+}
+/*
 void *
 allocate_frame ()
 {
@@ -18,32 +59,33 @@ allocate_frame ()
   struct thread *cur = thread_current ();
   void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
 
-  /*If cannot get a page, evict one*/
+  //If cannot get a page, evict one
   if (kpage == NULL){
-    struct frame_table_entry *victim = evict_frame();
+    struct frame_table_entry *victim_fte = evict_frame();
     //size_t index = swap_out(victim->frame);
 		//victim->spte->loaded = false;
 		//victim->spte->source = SWAP;
 		//victim->spte->index = index;
-		pagedir_clear_page(victim->owner->pagedir, victim->spte->user_vaddr);
+		pagedir_clear_page(victim_fte->owner->pagedir, victim_fte->spte->user_vaddr);
 
-    victim->owner = cur;
-    free(victim->spte);
+    victim_fte->owner = cur;
+    free(victim_fte->spte);
     //victim->spte = NULL;
-    list_push_back (&frame_table, &victim->elem);
+    list_push_back (&frame_table, &victim_fte->elem);
+    lock_release (&f_lock);
+    return victim_fte->frame;
   }
   else{
-    struct frame_table_entry *frame_table_entry
-        = calloc (1, sizeof *frame_table_entry);
-    frame_table_entry->owner = cur;
-    frame_table_entry->frame = kpage;
+    struct frame_table_entry *fte = calloc (1, sizeof *fte);
+    fte->owner = cur;
+    fte->frame = kpage;
     //frame_table_entry->spte = NULL;
-    list_push_back (&frame_table, &frame_table_entry->elem);
+    list_push_back (&frame_table, &fte->elem);
+    lock_release (&f_lock);
+    return kpage;
   }
-  lock_release (&f_lock);
-  return kpage;
 }
-
+*/
 void
 free_frame (void *kpage)
 {

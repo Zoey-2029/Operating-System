@@ -95,7 +95,7 @@ struct thread
     struct list_elem elem;              /* List element. */
 
     /* Supplementary page table. */
-    struct list page_table;
+    struct list sup_page_table;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
