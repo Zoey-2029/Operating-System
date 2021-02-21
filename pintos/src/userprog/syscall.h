@@ -7,6 +7,7 @@
 #include "userprog/pagedir.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#define MAX_FILE_SIZE 14
 
 typedef int pid_t;
 

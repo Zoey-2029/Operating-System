@@ -10,13 +10,11 @@
 #include "threads/vaddr.h"
 #include "userprog/exception.h"
 #include "userprog/pagedir.h"
+#include "vm/frame_table.h"
 #include <console.h>
 #include <string.h>
 #include <syscall-nr.h>
-#include "vm/frame_table.h"
 #define MAX_WRITE_CHUNK 200
-
-#define MAX_FILE_SIZE 14
 
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
@@ -256,7 +254,6 @@ sys_exec (const char *cmd_line)
 
   /* Wait for child process loading. */
   sema_down (&thread_current ()->sema_exec);
-
   /* Get child process from pid. */
   struct thread_info *child_process
       = get_child_process (child_pid, &thread_current ()->child_processes);
@@ -550,24 +547,37 @@ bool
 grow_stack (const void *fault_addr)
 {
   void *kpage = allocate_frame ();
+  // printf("after grow_stack\n");
   if (kpage != NULL)
     {
       void *upage = pg_round_down (fault_addr);
       bool writable = true;
-      bool success = pagedir_set_page (thread_current ()->pagedir, upage,
-                                       kpage, writable);
-      if (success)
+      // bool success = pagedir_set_page (thread_current ()->pagedir, upage,
+      //                                  kpage, writable);
+      // if (success)
+      //   {
+      //     /* Create entry in supplemental page table. */
+      //    //  printf ("install success %p\n", upage);
+      //     struct frame_table_entry *entry = find_in_frame_table(kpage);
+      // struct sup_page_table_entry *spte = install_page_supplemental (upage);
+      // entry->spte = spte;
+
+      //     return true;
+      //   }
+      // else
+      //   {
+      //    //  printf ("install failed\n");
+      //     free_frame (kpage);
+      //     return false;
+      //   }
+      if (!install_page (upage, kpage, writable))
         {
-          /* Create entry in supplemental page table. */
-         //  printf ("install success %p\n", upage);
-          install_page_supplemental (upage);
-          return true;
+          free_frame (kpage);
+          return false;
         }
       else
         {
-         //  printf ("install failed\n");
-          free_frame (kpage);
-          return false;
+          return true;
         }
     }
   else

@@ -3,9 +3,11 @@
 #include "threads/thread.h"
 #include "userprog/gdt.h"
 #include "userprog/syscall.h"
+#include "userprog/process.h"
+#include "vm/frame_table.h"
+#include "vm/swap.h"
 #include <inttypes.h>
 #include <stdio.h>
-#include "vm/frame_table.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -153,34 +155,58 @@ page_fault (struct intr_frame *f)
   if (user)
     {
       // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
+      fault_addr = pg_round_down (fault_addr);
+      struct sup_page_table_entry *entry = find_in_table (fault_addr);
+      if (entry != NULL)
+        {
+         //  printf ("found in sup page table %p %d %d\n", fault_addr,
+         //          entry->source, entry->swap_index);
+          if (entry->source == SWAP)
+            {
+              void *kpage = allocate_frame ();
+            //   printf("find_in_frame_table %p\n", find_in_frame_table(kpage));
+              if (kpage != NULL)
+                {
+                  bool success = install_page (fault_addr,
+                                          kpage, true);
+                  // printf("success%d\n", success);
+                  if (success)
+                    {
+                      // set up the argument in stack
+                      // install_page_supplemental (((uint8_t *)PHYS_BASE) -
+                      // PGSIZE);
+                      read_from_block (kpage, entry->swap_index);
+                      return;
+                    }
+                  else
+                    {
+                      sys_exit (-1);
+                    }
+                }
+            }
+        }
       /* Validate the address. */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
         {
           /* Exit user thread if truly invalid. */
+         //  printf ("invalid memory\n");
           sys_exit (-1);
         }
       else
         {
-          bool success = false;
-          struct sup_page_table_entry *entry = find_in_table (fault_addr);
-          if (entry != NULL)
-            {
-              /* A lot to do here. */
-              if (write && entry->read_only)
-                {
-                  // printf("try to write to read-only\n");
-                  sys_exit (-1);
-                }
-            }
-         
+          //  bool success = false;
+
           /* If valid, install the frame. */
-         //  printf ("valid address, need to install new frame\n");
-          if (grow_stack (fault_addr)) {
-             return;
-          } else {
-             sys_exit(-1);
-          }
+          //  printf ("valid address, need to install new frame\n");
+          if (grow_stack (fault_addr))
+            {
+              return;
+            }
+          else
+            {
+              sys_exit (-1);
+            }
         }
     }
 

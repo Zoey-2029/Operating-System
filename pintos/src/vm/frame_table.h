@@ -5,7 +5,6 @@
 #include "vm/page_table.h"
 #include <list.h>
 
-
 struct frame_table_entry
 {
   void *frame;
@@ -15,8 +14,9 @@ struct frame_table_entry
   // Maybe store information for memory mapped files here too?
 };
 
+struct frame_table_entry *find_in_frame_table (void *kpage);
 void *allocate_frame (void);
 void free_frame (void *);
-void frame_table_init(void);
+void frame_table_init (void);
 
-struct frame_table_entry *evict_frame(void);
+void *evict_frame (void);
