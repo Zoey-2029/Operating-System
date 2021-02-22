@@ -28,6 +28,8 @@
         "BOUNDARY.C": "cpp",
         "frame_table.h": "c",
         "stdio.h": "c",
-        "page_table.h": "c"
+        "page_table.h": "c",
+        "cstdlib": "c",
+        "pagedir.h": "c"
     }
 }
