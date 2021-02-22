@@ -29,7 +29,16 @@
         "frame_table.h": "c",
         "stdio.h": "c",
         "page_table.h": "c",
+<<<<<<< HEAD
         "cstdlib": "c",
         "pagedir.h": "c"
+=======
+        "thread.h": "c",
+        "THREAD.H": "cpp",
+        "BITMAP.H": "cpp",
+        "string.h": "c",
+        "swap.h": "c",
+        "syscall.h": "c"
+>>>>>>> origin/page
     }
 }
