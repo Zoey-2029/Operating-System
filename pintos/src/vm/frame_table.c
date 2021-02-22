@@ -17,6 +17,7 @@ allocate_frame ()
   lock_acquire (&f_lock);
   struct thread *cur = thread_current ();
   void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
+
   /*If cannot get a page, evict one*/
   if (kpage == NULL)
     {
@@ -128,4 +129,59 @@ evict_frame (void)
         }
     }
   return NULL;
+}
+
+bool 
+load_page_from_mmap (struct sup_page_table_entry *spte)
+{
+  void *upage = spte->user_vaddr;
+  void *kpage = allocate_frame();
+  install_page(upage, kpage, true);
+  
+  file_seek(spte->file, spte->file_offset);
+   
+  // read bytes from the file
+  int n_read = file_read (spte->file, kpage, spte->read_bytes);
+  if(n_read != (int)spte->read_bytes)
+    return false;
+
+  // the remaining bytea are zero
+  ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
+  memset (kpage + n_read, 0, spte->zero_bytes);
+  return true;
+}
+
+void
+free_page_table ()
+{
+  struct list *l = &thread_current ()->page_table;
+  struct list_elem *e;
+  for (e = list_begin (l); e != list_end (l);)
+    {
+      struct sup_page_table_entry *spte
+          = list_entry (e, struct sup_page_table_entry, elem);
+      
+      struct list_elem *next = list_next (e);
+      e = next;
+      free_single_page(spte);
+    }
+}
+
+void 
+free_single_page (struct sup_page_table_entry *spte) 
+{
+  /* write file back to disk is  */
+  if (spte->source == MMAP && spte->fte && 
+      pagedir_is_dirty(thread_current ()->pagedir, spte->user_vaddr)) {
+        //printf("test dirty %x \n", spte->fte->frame);
+        file_write_at(spte->file, spte->user_vaddr, 
+                    spte->read_bytes, spte->file_offset);
+      }
+    
+  if (spte->fte)
+    free_frame(spte->fte->frame);
+    
+  list_remove(&spte->elem);
+  pagedir_clear_page(thread_current ()->pagedir, spte->user_vaddr);  
+  free(spte);
 }

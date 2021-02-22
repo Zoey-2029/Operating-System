@@ -487,6 +487,7 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init (&t->sema_exec, 0);
   list_init (&t->child_processes);
   list_init (&t->file_info_list);
+  list_init (&t->mmapped_file_list);
   t->fd_count = STDOUT_FILENO + 1;
 #endif
 

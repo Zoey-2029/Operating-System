@@ -41,19 +41,13 @@ process_execute (const char *file_name)
      Otherwise there's a race between the caller and load(). */
   fn_copy = allocate_frame ();
   if (fn_copy == NULL)
-    {
-      free_frame (fn_copy);
-      return TID_ERROR;
-    }
+    return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Process the command line and pass arguments to thread */
   char *fn_copy_2 = allocate_frame ();
   if (fn_copy_2 == NULL)
-    {
-      free_frame (fn_copy);
-      return TID_ERROR;
-    }
+    return TID_ERROR;
   char *to_free = fn_copy_2;
   strlcpy (fn_copy_2, file_name, PGSIZE);
   char *args;
@@ -406,6 +400,8 @@ done:
   return success;
 }
 
+
+
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
@@ -501,17 +497,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
           free_frame (kpage);
           return false;
         }
-
-      // struct frame_table_entry *entry = find_in_frame_table (kpage);
-      // struct sup_page_table_entry *spte = install_page_supplemental (upage);
-      // entry->spte = spte;
-      // install_page(upage, kpage, true);
+      struct sup_page_table_entry *entry = install_page_supplemental (upage);
+      entry->read_only = true;
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
-  // printf("load segment done\n");
   return true;
 }
 
@@ -530,7 +522,7 @@ setup_stack (void **esp, const char *file_name)
       if (success)
         {
           // set up the argument in stack
-          // install_page_supplemental (((uint8_t *)PHYS_BASE) - PGSIZE);
+          install_page_supplemental (((uint8_t *)PHYS_BASE) - PGSIZE);
           *esp = setup_arguments_in_stack (file_name);
         }
       else
@@ -538,8 +530,6 @@ setup_stack (void **esp, const char *file_name)
           free_frame (kpage);
         }
     }
-  // printf("setup_stack kpage %p\n", kpage);
-  // printf("setup_stack %p\n", esp);
   return success;
 }
 
@@ -553,7 +543,7 @@ setup_arguments_in_stack (const char *file_name)
   char *fn_copy = allocate_frame ();
   char *to_free = fn_copy;
   if (fn_copy == NULL)
-    return NULL;
+    return PHYS_BASE;
   strlcpy (fn_copy, file_name, PGSIZE);
 
   char *stack_ptr = PHYS_BASE;

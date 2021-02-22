@@ -35,31 +35,6 @@ find_in_table (void *upage)
   return NULL;
 }
 
-<<<<<<< HEAD
 
-bool 
-=======
-bool
-load_page_from_file (struct sup_page_table_entry *entry UNUSED)
-{
-  ASSERT (entry != NULL && entry->source == FILE);
-  return false;
-  // uint32_t *frame = allocate_frame(spte, spte->zero_bytes == PGSIZE);
-}
 
-bool
-load_page_from_stack (struct sup_page_table_entry *entry UNUSED)
-{
-  return false;
-}
-bool
-load_page_from_swap (struct sup_page_table_entry *entry UNUSED)
-{
-  return false;
-}
-bool
-load_page_from_mmap (struct sup_page_table_entry *entry UNUSED)
-{
-  return false;
-}
->>>>>>> origin/page
+

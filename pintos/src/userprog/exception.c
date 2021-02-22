@@ -183,7 +183,16 @@ page_fault (struct intr_frame *f)
                       sys_exit (-1);
                     }
                 }
+            } 
+          else if (entry->source == MMAP) 
+            {
+              
+              if (load_page_from_mmap(entry))
+                return;
+              else
+                sys_exit(-1);
             }
+             
         }
       /* Validate the address. */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
@@ -195,35 +204,11 @@ page_fault (struct intr_frame *f)
         }
       else
         {
-<<<<<<< HEAD
-          void *fault_page = pg_round_down(fault_addr);
-          struct sup_page_table_entry *entry = find_in_table (fault_page);
-          if (entry == NULL)
-              entry = install_page_supplemental(fault_page);
-          
-          if (load_page(entry))
-            {
-              return;
-            }
-          else  
-            {
-              sys_exit(-1);
-            }
-            
-
-            
-            
-          
-          
-            
-          if (entry != NULL)
-=======
           //  bool success = false;
 
           /* If valid, install the frame. */
           //  printf ("valid address, need to install new frame\n");
           if (grow_stack (fault_addr))
->>>>>>> origin/page
             {
               return;
             }
@@ -231,23 +216,6 @@ page_fault (struct intr_frame *f)
             {
               sys_exit (-1);
             }
-<<<<<<< HEAD
-
-          /* if the address is valid, load the page */
-          if (load_page(entry))
-            return;
-          
-          sys_exit(-1);
-
-          /* If valid, install the frame. */
-         //  printf ("valid address, need to install new frame\n");
-          // if (grow_stack (fault_addr)) {
-          //    return;
-          // } else {
-          //    sys_exit(-1);
-          // }
-=======
->>>>>>> origin/page
         }
     }
 
