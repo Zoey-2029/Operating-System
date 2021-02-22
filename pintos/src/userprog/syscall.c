@@ -539,6 +539,7 @@ free_page_table ()
           = list_entry (e, struct sup_page_table_entry, elem);
       struct list_elem *next = list_next (e);
       list_remove (e);
+      list_remove(&entry->fte->elem);
       free (entry);
       e = next;
     }
