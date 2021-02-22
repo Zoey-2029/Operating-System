@@ -39,19 +39,21 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = calloc(1, strlen(file_name));
-  if (fn_copy == NULL) {
-    free(fn_copy);
-    return TID_ERROR;
-  }
+  fn_copy = allocate_frame ();
+  if (fn_copy == NULL)
+    {
+      free_frame (fn_copy);
+      return TID_ERROR;
+    }
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Process the command line and pass arguments to thread */
-  char *fn_copy_2 = calloc(1, strlen(file_name));
-  if (fn_copy_2 == NULL) {
-    free(fn_copy);
-    return TID_ERROR;
-  }
+  char *fn_copy_2 = allocate_frame ();
+  if (fn_copy_2 == NULL)
+    {
+      free_frame (fn_copy);
+      return TID_ERROR;
+    }
   char *to_free = fn_copy_2;
   strlcpy (fn_copy_2, file_name, PGSIZE);
   char *args;
@@ -59,9 +61,9 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
-  free (to_free);
+  free_frame (to_free);
   if (tid == TID_ERROR)
-    free (fn_copy);
+    free_frame (fn_copy);
 
   return tid;
 }
@@ -300,7 +302,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Process file_name to get the executables file name
      Open executable file. */
-  char *fn_copy = calloc(1, strlen(file_name));
+  char *fn_copy = allocate_frame ();
   if (fn_copy == NULL)
     return false;
   char *to_free = fn_copy;
@@ -312,7 +314,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", program_name);
-      free (to_free);
+      free_frame (to_free);
       goto done;
     }
 
@@ -548,7 +550,7 @@ setup_arguments_in_stack (const char *file_name)
 {
 
   // first copy argv to argv_copy
-  char *fn_copy = calloc (1, strlen(file_name));
+  char *fn_copy = allocate_frame ();
   char *to_free = fn_copy;
   if (fn_copy == NULL)
     return NULL;
@@ -603,7 +605,7 @@ setup_arguments_in_stack (const char *file_name)
 
   /* Push a fake "return address". */
   stack_ptr -= sizeof (void *);
-  free (to_free);
+  free_frame (to_free);
 
   return stack_ptr;
 }
@@ -629,8 +631,7 @@ install_page (void *upage, void *kpage, bool writable)
     {
       return false;
     }
-    
-    
+
   struct frame_table_entry *entry = find_in_frame_table (kpage);
   struct sup_page_table_entry *spte = install_page_supplemental (upage);
   if (entry == NULL || spte == NULL)

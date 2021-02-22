@@ -100,7 +100,13 @@ evict_frame (void)
       struct frame_table_entry *fte
           = list_entry (e, struct frame_table_entry, elem);
       // printf ("aaaa %p %p\n", fte, fte->spte);
-      if (pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
+      
+      /* Skip those not used with spte. */
+      if (!fte->spte)
+        {
+          list_push_back (&frame_table, &fte->elem);
+        }
+      else if (pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
         {
           // printf ("bbbb\n");
           pagedir_set_accessed (curr->pagedir, fte->spte->user_vaddr, false);
@@ -110,7 +116,7 @@ evict_frame (void)
         {
           //  printf ("found!\n");
           pagedir_clear_page (fte->owner->pagedir, fte->spte->user_vaddr);
-          void* kpage = fte->frame;
+          void *kpage = fte->frame;
           // printf ("kpage %p\n", kpage);
           size_t index = write_to_block (fte->frame);
           // printf ("kpage %p\n", kpage);

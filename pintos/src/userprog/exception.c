@@ -2,8 +2,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "userprog/gdt.h"
-#include "userprog/syscall.h"
 #include "userprog/process.h"
+#include "userprog/syscall.h"
 #include "vm/frame_table.h"
 #include "vm/swap.h"
 #include <inttypes.h>
@@ -155,20 +155,20 @@ page_fault (struct intr_frame *f)
   if (user)
     {
       // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
-      fault_addr = pg_round_down (fault_addr);
-      struct sup_page_table_entry *entry = find_in_table (fault_addr);
+      void *upage = pg_round_down (fault_addr);
+      struct sup_page_table_entry *entry = find_in_table (upage);
       if (entry != NULL)
         {
-         //  printf ("found in sup page table %p %d %d\n", fault_addr,
-         //          entry->source, entry->swap_index);
+          //  printf ("found in sup page table %p %d %d\n", fault_addr,
+          //          entry->source, entry->swap_index);
           if (entry->source == SWAP)
             {
               void *kpage = allocate_frame ();
-            //   printf("find_in_frame_table %p\n", find_in_frame_table(kpage));
+              //   printf("find_in_frame_table %p\n",
+              //   find_in_frame_table(kpage));
               if (kpage != NULL)
                 {
-                  bool success = install_page (fault_addr,
-                                          kpage, true);
+                  bool success = install_page (upage, kpage, true);
                   // printf("success%d\n", success);
                   if (success)
                     {

@@ -250,8 +250,9 @@ sys_exit (int status)
 pid_t
 sys_exec (const char *cmd_line)
 {
+ 
   pid_t child_pid = process_execute (cmd_line);
-
+   
   /* Wait for child process loading. */
   sema_down (&thread_current ()->sema_exec);
   /* Get child process from pid. */
