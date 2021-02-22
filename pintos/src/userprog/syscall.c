@@ -99,8 +99,9 @@ syscall_handler (struct intr_frame *f)
 
         const char *file = (void *)(*((int *)f->esp + 1));
         unsigned initial_size = *((unsigned *)f->esp + 2);
-        if (!check_memory_validity (file, initial_size, f->esp))
+        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp)) {
           sys_exit (-1);
+        }
         f->eax = sys_create (file, initial_size);
         break;
       }
@@ -441,7 +442,7 @@ static bool
 check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
 {
   // at least check one pointer
-  // printf ("virtual_addr %p\n", virtual_addr);
+  
   if (size == 0)
     size = 1;
   for (unsigned i = 0; i < size; i++)
@@ -454,6 +455,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
        a pointer to unmapped virtual memory.  */
       if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
         {
+          // printf ("fff virtual_addr %p\n", addr);
           return false;
         }
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
