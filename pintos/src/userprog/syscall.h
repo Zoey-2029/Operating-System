@@ -34,6 +34,9 @@ int sys_write (int fd, const void *buffer, unsigned size);
 void sys_seek (int fd, unsigned position);
 unsigned sys_tell (int fd);
 void sys_close (int fd);
-bool grow_stack (const void *fault_addr);
+mapid_t sys_mmap (int fd, void *addr);
+void sys_munmap (mapid_t mapid);
+bool load_page (struct sup_page_table_entry *entry);
+bool load_page_from_filesys();
 
 #endif /* userprog/syscall.h */

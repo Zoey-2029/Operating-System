@@ -18,6 +18,7 @@ enum thread_status
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
+typedef int mapid_t;
 #define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
 
 /* Thread priorities. */
@@ -107,6 +108,7 @@ struct thread
                                            and child process. */
     struct file *exec_file;             /* Executable file. */
     int fd_count;
+    struct list mmapped_file_list;         /* list of memory mapped file */
 #endif
 
     /* Owned by thread.c. */
@@ -115,15 +117,25 @@ struct thread
 
 /* This struct is used for parent to retrive its children's info
    even after the child has exited. */
-  struct thread_info
-  {
-    int tid;
-    bool load_status;
-    int exit_status;            /* Exit status of thread */
-    struct semaphore sema_wait; /* Wait between parent
-                                   and child process. */
-    struct list_elem elem;      /* List element for child_processes */
-  };
+struct thread_info
+{
+   int tid;
+   bool load_status;
+   int exit_status;            /* Exit status of thread */
+   struct semaphore sema_wait; /* Wait between parent
+                                 and child process. */
+   struct list_elem elem;      /* List element for child_processes */
+};
+
+struct mmapped_file_entry
+{
+   int mapid;
+   void *user_vaddr; 
+   struct file *file;
+   struct list_elem elem;
+   size_t file_size;
+};
+
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -163,5 +175,6 @@ int thread_get_load_avg (void);
 
 void lock_release_filesys (void);
 void lock_acquire_filesys (void);
+
 
 #endif /* threads/thread.h */
