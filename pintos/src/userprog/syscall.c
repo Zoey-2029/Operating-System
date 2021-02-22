@@ -10,14 +10,11 @@
 #include "threads/vaddr.h"
 #include "userprog/exception.h"
 #include "userprog/pagedir.h"
+#include "vm/frame_table.h"
 #include <console.h>
 #include <string.h>
 #include <syscall-nr.h>
-#include "vm/frame_table.h"
-#include "vm/page_table.h"
 #define MAX_WRITE_CHUNK 200
-
-#define MAX_FILE_SIZE 14
 
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
@@ -102,8 +99,9 @@ syscall_handler (struct intr_frame *f)
 
         const char *file = (void *)(*((int *)f->esp + 1));
         unsigned initial_size = *((unsigned *)f->esp + 2);
-        if (!check_memory_validity (file, initial_size, f->esp))
+        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp)) {
           sys_exit (-1);
+        }
         f->eax = sys_create (file, initial_size);
         break;
       }
@@ -253,11 +251,11 @@ sys_exit (int status)
 pid_t
 sys_exec (const char *cmd_line)
 {
+ 
   pid_t child_pid = process_execute (cmd_line);
-
+   
   /* Wait for child process loading. */
   sema_down (&thread_current ()->sema_exec);
-
   /* Get child process from pid. */
   struct thread_info *child_process
       = get_child_process (child_pid, &thread_current ()->child_processes);
@@ -444,7 +442,7 @@ static bool
 check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
 {
   // at least check one pointer
-  // printf ("virtual_addr %p\n", virtual_addr);
+  
   if (size == 0)
     size = 1;
   for (unsigned i = 0; i < size; i++)
@@ -457,6 +455,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
        a pointer to unmapped virtual memory.  */
       if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
         {
+          // printf ("fff virtual_addr %p\n", addr);
           return false;
         }
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
@@ -542,6 +541,7 @@ free_page_table ()
           = list_entry (e, struct sup_page_table_entry, elem);
       struct list_elem *next = list_next (e);
       list_remove (e);
+      list_remove(&entry->fte->elem);
       free (entry);
       e = next;
     }
@@ -551,24 +551,37 @@ bool
 grow_stack (const void *fault_addr)
 {
   void *kpage = allocate_frame ();
+  // printf("after grow_stack\n");
   if (kpage != NULL)
     {
       void *upage = pg_round_down (fault_addr);
       bool writable = true;
-      bool success = pagedir_set_page (thread_current ()->pagedir, upage,
-                                       kpage, writable);
-      if (success)
+      // bool success = pagedir_set_page (thread_current ()->pagedir, upage,
+      //                                  kpage, writable);
+      // if (success)
+      //   {
+      //     /* Create entry in supplemental page table. */
+      //    //  printf ("install success %p\n", upage);
+      //     struct frame_table_entry *entry = find_in_frame_table(kpage);
+      // struct sup_page_table_entry *spte = install_page_supplemental (upage);
+      // entry->spte = spte;
+
+      //     return true;
+      //   }
+      // else
+      //   {
+      //    //  printf ("install failed\n");
+      //     free_frame (kpage);
+      //     return false;
+      //   }
+      if (!install_page (upage, kpage, writable))
         {
-          /* Create entry in supplemental page table. */
-         //  printf ("install success %p\n", upage);
-          install_page_supplemental (upage);
-          return true;
+          free_frame (kpage);
+          return false;
         }
       else
         {
-         //  printf ("install failed\n");
-          free_frame (kpage);
-          return false;
+          return true;
         }
     }
   else

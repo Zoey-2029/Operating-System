@@ -38,6 +38,7 @@
 #include "filesys/fsutil.h"
 #endif
 #include "vm/frame_table.h"
+#include "vm/swap.h"
 
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
@@ -97,7 +98,6 @@ main (void)
 
   /* Initialize memory system. */
   palloc_init (user_page_limit);
-  frame_table_init();
   malloc_init ();
   paging_init ();
 
@@ -106,7 +106,7 @@ main (void)
   tss_init ();
   gdt_init ();
 #endif
-
+  frame_table_init();
   /* Initialize interrupt handlers. */
   intr_init ();
   timer_init ();
@@ -127,6 +127,7 @@ main (void)
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);
+  swap_init();
 #endif
 
   printf ("Boot complete.\n");
