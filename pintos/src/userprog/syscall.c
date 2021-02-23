@@ -76,6 +76,7 @@ syscall_handler (struct intr_frame *f)
             || !check_memory_validity (cmd_line, strlen (cmd_line), f->esp))
           sys_exit (-1);
         f->eax = sys_exec (cmd_line);
+        // printf("SYS_EXEC\n");
         break;
       }
 
@@ -507,11 +508,17 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                     {
                       if (load_page (entry))
                         return true;
-                      else
+                      else {
+                        // printf("-1\n");
                         return false;
+                      }
                     }
                 }
-              return false;
+              else
+                {
+                  // printf("-1\n");
+                  return false;
+                }
             }
         }
     }

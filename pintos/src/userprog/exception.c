@@ -152,30 +152,39 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if (user)
+  // if (user)
+  //   {
+
+  void *upage = pg_round_down (fault_addr);
+  struct sup_page_table_entry *entry = find_in_table (upage);
+  if (entry != NULL)
     {
-     
-      void *upage = pg_round_down (fault_addr);
-      struct sup_page_table_entry *entry = find_in_table (upage);
-      if (entry != NULL)
+      //  printf ("found in sup page table %p %d %d\n", fault_addr,
+      //          entry->source, entry->swap_index);
+      //  printf ("f->esp: %p , fault: %p %d\n", f->esp, fault_addr,
+      //  entry->source);
+      if (entry->source == SWAP || entry->source == MMAP
+          || entry->source == FILE)
         {
-          //  printf ("found in sup page table %p %d %d\n", fault_addr,
-          //          entry->source, entry->swap_index);
-          //  printf ("f->esp: %p , fault: %p %d\n", f->esp, fault_addr, entry->source);
-          if (entry->source == SWAP || entry->source == MMAP || entry->source == FILE)
+          if (load_page (entry))
+            return;
+          else
             {
-              if (load_page(entry))
-                  return;
-              else 
-                  sys_exit(-1);
+              // printf ("asdsa\n");
+              sys_exit (-1);
             }
         }
+    }
+  if (user)
+    {
       /* Validate the address. */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
         {
           /* Exit user thread if truly invalid. */
-         //  printf ("invalid memory\n");
+          //  printf ("invalid memory\n");
+          // printf ("asdsa %p\n", fault_addr);
+          // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
           sys_exit (-1);
         }
       else
@@ -194,6 +203,7 @@ page_fault (struct intr_frame *f)
             }
         }
     }
+  // }
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

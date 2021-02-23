@@ -3,7 +3,7 @@
 struct sup_page_table_entry *
 install_page_supplemental (void *upage)
 {
-  // printf("install_page_supplemental %p\n", upage);
+  // printf ("%d install_page_supplemental %p\n", thread_current ()->tid, upage);
   struct sup_page_table_entry *page_table_entry = find_in_table (upage);
   if (page_table_entry == NULL)
     {
@@ -12,10 +12,11 @@ install_page_supplemental (void *upage)
       list_push_back (&thread_current ()->page_table, &page_table_entry->elem);
       return page_table_entry;
     }
-  else {
-    // printf("asdasd\n");
-    return page_table_entry;
-  }
+  else
+    {
+      // printf("asdasd\n");
+      return page_table_entry;
+    }
 }
 
 struct sup_page_table_entry *
