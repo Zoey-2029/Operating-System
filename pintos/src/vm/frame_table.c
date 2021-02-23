@@ -84,15 +84,6 @@ find_in_frame_table (void *kpage)
 void *
 evict_frame (void)
 {
-  /*
-  struct list_elem *e;
-  for (e = list_begin (&frame_table); e != list_end (&frame_table);
-       e = list_next (e))
-    {
-      struct frame_table_entry *entry
-      = list_entry (e, struct frame_table_entry, elem);
-    }
-  */
   struct thread *curr = thread_current ();
   while (!list_empty (&frame_table))
     {
@@ -133,18 +124,22 @@ evict_frame (void)
 bool
 load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
-  // printf("load_page_from_file\n");
-  lock_acquire(&f_lock);
+  // lock_acquire_filesys ();
+  lock_acquire (&f_lock);
   file_seek (spte->file, spte->file_offset);
   /* Load this page. */
   if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
     {
-      printf("failed\n");
+      printf ("failed\n");
+      lock_release_filesys ();
       return false;
     }
+  // lock_release_filesys ();
+  // lock_acquire (&f_lock);
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
   memset (kpage + spte->read_bytes, 0, spte->zero_bytes);
-  lock_release(&f_lock);;
+  lock_release (&f_lock);
+
   return true;
 }
 
@@ -157,9 +152,9 @@ load_page_from_stack (struct sup_page_table_entry *entry UNUSED)
 bool
 load_page_from_swap (struct sup_page_table_entry *spte, void *kpage)
 {
-  // lock_acquire(&f_lock);
+  lock_acquire(&f_lock);
   read_from_block (kpage, spte->swap_index);
-  //  lock_release(&f_lock);
+  lock_release(&f_lock);
   return true;
 }
 
@@ -167,17 +162,23 @@ bool
 load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 {
   // lock_acquire_filesys ();
+  lock_acquire (&f_lock);
   file_seek (spte->file, spte->file_offset);
 
   // read bytes from the file
   int n_read = file_read (spte->file, kpage, spte->read_bytes);
   if (n_read != (int)spte->read_bytes)
-    return false;
+    {
+      lock_release (&f_lock);
+      ;
+      return false;
+    }
 
   // the remaining bytea are zero
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
   memset (kpage + n_read, 0, spte->zero_bytes);
   // lock_release_filesys ();
+  lock_release (&f_lock);
   return true;
 }
 
@@ -195,7 +196,7 @@ load_page (struct sup_page_table_entry *spte UNUSED)
     }
   if (!install_page (upage, kpage, writable))
     return false;
-
+  // printf("load page %d\n", spte->source);
   switch (spte->source)
     {
     case FILE:
@@ -212,7 +213,7 @@ load_page (struct sup_page_table_entry *spte UNUSED)
 void
 free_single_page (struct sup_page_table_entry *spte)
 {
-  lock_acquire_filesys ();
+
   /* write file back to disk is  */
   if (spte->source == MMAP && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
@@ -228,12 +229,12 @@ free_single_page (struct sup_page_table_entry *spte)
   list_remove (&spte->elem);
   pagedir_clear_page (thread_current ()->pagedir, spte->user_vaddr);
   free (spte);
-  lock_release_filesys ();
 }
 
 void
 free_page_table ()
 {
+  lock_acquire_filesys ();
   struct list *l = &thread_current ()->page_table;
   struct list_elem *e;
   for (e = list_begin (l); e != list_end (l);)
@@ -244,4 +245,5 @@ free_page_table ()
       e = next;
       free_single_page (entry);
     }
+  lock_release_filesys ();
 }

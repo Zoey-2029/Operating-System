@@ -37,6 +37,7 @@ syscall_handler (struct intr_frame *f)
 {
   if (!check_memory_validity (f->esp, 1 * sizeof (int *), NULL))
     sys_exit (-1);
+  // printf("%d\n",*(int *)f->esp );
   /* Number of args to check validity. */
   unsigned args = 0;
   switch (*(int *)f->esp)
@@ -536,20 +537,26 @@ sys_mmap (int fd, void *addr)
   lock_acquire_filesys ();
   /* search for the file to map */
   struct file_info *info = find_file_info (fd);
-  if (!info || !info->file)
+  if (!info || !info->file) {
+    lock_release_filesys ();
     return -1;
+  }
 
   struct file *file = file_reopen (info->file);
   off_t file_size = file_length (file);
-  if (file_size == 0)
+  if (file_size == 0) {
+    lock_release_filesys ();
     return -1;
+  }
 
   /* validate space in [addr, addr + file_size] is unmapped */
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
-      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr))
+      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr)) {
+        lock_release_filesys ();
         return -1;
+      }
       curr_addr += PGSIZE;
     }
 
@@ -615,7 +622,6 @@ sys_munmap (mapid_t mapid)
     }
 
   file_close (mp->file);
-  ;
   list_remove (&mp->elem);
   free (mp);
   lock_release_filesys ();

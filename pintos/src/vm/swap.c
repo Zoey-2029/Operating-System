@@ -32,7 +32,7 @@ write_to_block (uint8_t *frame)
   if (bit == BITMAP_ERROR)
     {
       printf("no more swap\n");
-      lock_release (&swap_lock);
+      // lock_release (&swap_lock);
       sys_exit (-1);
     }
   size_t index = bit * PAGE_BLOCKS;

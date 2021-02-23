@@ -308,7 +308,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *to_free = fn_copy;
   char *argv;
   strlcpy (fn_copy, file_name, PGSIZE);
-  lock_acquire_filesys ();
+  // lock_acquire_filesys ();
   char *program_name = strtok_r (fn_copy, " ", &argv);
   file = filesys_open (program_name);
   if (file == NULL)
@@ -403,7 +403,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  lock_release_filesys();
+  // lock_release_filesys();
   return success;
 }
 
@@ -489,6 +489,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       spte->file_offset = ofs;
       spte->read_bytes = page_read_bytes;
       spte->zero_bytes = page_zero_bytes;
+      spte->source = FILE;
       ofs += page_read_bytes;
 
       /* Advance. */
