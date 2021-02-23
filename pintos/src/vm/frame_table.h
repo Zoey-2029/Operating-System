@@ -1,13 +1,14 @@
+#include "filesys/file.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
-#include "userprog/pagedir.h"
-#include "vm/page_table.h"
-#include "filesys/file.h"
 #include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 #include "userprog/process.h"
+#include "vm/page_table.h"
 #include <list.h>
 #include <string.h>
+
 
 struct frame_table_entry
 {
@@ -25,8 +26,7 @@ void free_frame (void *);
 
 void *evict_frame (void);
 
-
-bool load_page_from_file (struct sup_page_table_entry *entry);
+bool load_page_from_file (struct sup_page_table_entry *spte, void *kpage);
 bool load_page_from_stack (struct sup_page_table_entry *entry);
 bool load_page_from_swap (struct sup_page_table_entry *spte, void *kpage);
 bool load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage);

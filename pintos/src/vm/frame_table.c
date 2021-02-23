@@ -100,7 +100,7 @@ evict_frame (void)
       struct frame_table_entry *fte
           = list_entry (e, struct frame_table_entry, elem);
       // printf ("aaaa %p %p\n", fte, fte->spte);
-      
+
       /* Skip those not used with spte. */
       if (!fte->spte)
         {
@@ -131,11 +131,19 @@ evict_frame (void)
 }
 
 bool
-load_page_from_file (struct sup_page_table_entry *entry UNUSED)
+load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
-  ASSERT (entry != NULL && entry->source == FILE);
-  return false;
-  // uint32_t *frame = allocate_frame(spte, spte->zero_bytes == PGSIZE);
+  file_seek (spte->file, spte->file_offset);
+  /* Load this page. */
+  if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
+    {
+      free_frame (kpage);
+      return false;
+    }
+  ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
+  memset (kpage + spte->read_bytes, 0, spte->zero_bytes);
+
+  return true;
 }
 
 bool
@@ -151,15 +159,14 @@ load_page_from_swap (struct sup_page_table_entry *spte, void *kpage)
   return true;
 }
 
-
 bool
 load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 {
-  file_seek(spte->file, spte->file_offset);
-   
+  file_seek (spte->file, spte->file_offset);
+
   // read bytes from the file
   int n_read = file_read (spte->file, kpage, spte->read_bytes);
-  if(n_read != (int)spte->read_bytes)
+  if (n_read != (int)spte->read_bytes)
     return false;
 
   // the remaining bytea are zero
@@ -172,40 +179,48 @@ bool
 load_page (struct sup_page_table_entry *spte UNUSED)
 {
   void *upage = spte->user_vaddr;
-  void *kpage = allocate_frame();
+  void *kpage = allocate_frame ();
+  bool writable = true;
   if (!kpage)
     return false;
-  if (!install_page(upage, kpage, true))
+  if (spte->source == FILE)
+    {
+      writable = spte->writable;
+    }
+  if (!install_page (upage, kpage, writable))
     return false;
-  
+
   switch (spte->source)
     {
-      case MMAP:
-        return load_page_from_mmap(spte, kpage);
-      case SWAP:
-        return load_page_from_swap(spte, kpage);
-      default:
-        return true;
+    case FILE:
+      return load_page_from_file (spte, kpage);
+    case MMAP:
+      return load_page_from_mmap (spte, kpage);
+    case SWAP:
+      return load_page_from_swap (spte, kpage);
+    default:
+      return true;
     }
 }
 
-void 
-free_single_page (struct sup_page_table_entry *spte) 
+void
+free_single_page (struct sup_page_table_entry *spte)
 {
   /* write file back to disk is  */
-  if (spte->source == MMAP && spte->fte && 
-      pagedir_is_dirty(thread_current ()->pagedir, spte->user_vaddr)) {
-        //printf("test dirty %x \n", spte->fte->frame);
-        file_write_at(spte->file, spte->user_vaddr, 
-                    spte->read_bytes, spte->file_offset);
-      }
-    
+  if (spte->source == MMAP && spte->fte
+      && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
+    {
+      // printf("test dirty %x \n", spte->fte->frame);
+      file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
+                     spte->file_offset);
+    }
+
   if (spte->fte)
-    free_frame(spte->fte->frame);
-    
-  list_remove(&spte->elem);
-  pagedir_clear_page(thread_current ()->pagedir, spte->user_vaddr);  
-  free(spte);
+    free_frame (spte->fte->frame);
+
+  list_remove (&spte->elem);
+  pagedir_clear_page (thread_current ()->pagedir, spte->user_vaddr);
+  free (spte);
 }
 
 void
@@ -219,6 +234,6 @@ free_page_table ()
           = list_entry (e, struct sup_page_table_entry, elem);
       struct list_elem *next = list_next (e);
       e = next;
-      free_single_page(entry);
+      free_single_page (entry);
     }
 }

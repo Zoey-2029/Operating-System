@@ -161,7 +161,7 @@ page_fault (struct intr_frame *f)
         {
           //  printf ("found in sup page table %p %d %d\n", fault_addr,
           //          entry->source, entry->swap_index);
-          if (entry->source == SWAP || entry->source == MMAP)
+          if (entry->source == SWAP || entry->source == MMAP || entry->source == FILE)
             {
               if (load_page(entry))
                   return;

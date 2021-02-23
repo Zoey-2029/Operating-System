@@ -482,30 +482,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
-      uint8_t *kpage = allocate_frame ();
-      if (kpage == NULL)
-        return false;
+      struct sup_page_table_entry *spte = install_page_supplemental (upage);
+      spte->writable = writable;
+      spte->file = file;
+      spte->file_offset = ofs;
+      spte->read_bytes = page_read_bytes;
+      spte->zero_bytes = page_zero_bytes;
 
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int)page_read_bytes)
-        {
-          free_frame (kpage);
-          return false;
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable))
-        {
-          free_frame (kpage);
-          return false;
-        }
-
-      // struct frame_table_entry *entry = find_in_frame_table (kpage);
-      // struct sup_page_table_entry *spte = install_page_supplemental (upage);
-      // entry->spte = spte;
-      // install_page(upage, kpage, true);
+      ofs += page_read_bytes;
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;

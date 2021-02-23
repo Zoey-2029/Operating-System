@@ -30,6 +30,7 @@ struct sup_page_table_entry
   int file_offset;
   uint32_t read_bytes;
   uint32_t zero_bytes;
+  bool writable;
 };
 
 struct sup_page_table_entry *install_page_supplemental (void *upage);
