@@ -34,6 +34,9 @@
         "BITMAP.H": "cpp",
         "string.h": "c",
         "swap.h": "c",
-        "syscall.h": "c"
+        "syscall.h": "c",
+        "SYSCALL.H": "cpp",
+        "BITMAP.C": "cpp",
+        "file.h": "c"
     }
 }

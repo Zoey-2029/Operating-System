@@ -10,5 +10,4 @@ void process_activate (void);
 
 struct thread_info *get_child_process(tid_t, struct list*);
 /* load() helpers. */
-bool install_page (void *upage, void *kpage, bool writable);
 #endif /* userprog/process.h */

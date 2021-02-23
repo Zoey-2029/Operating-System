@@ -152,8 +152,10 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  // if (user)
+  // if (!user)
   //   {
+  //     printf("not usewr\n");
+  //   }
 
   void *upage = pg_round_down (fault_addr);
   struct sup_page_table_entry *entry = find_in_table (upage);

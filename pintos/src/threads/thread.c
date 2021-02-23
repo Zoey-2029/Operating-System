@@ -576,7 +576,7 @@ lock_acquire_filesys ()
   // //   {
   // //     return false;
   // //   }
-  // printf("acq\n");
+  // printf ("acq\n");
   lock_acquire (&filesys_lock);
   // return true;
 }
@@ -588,9 +588,14 @@ lock_release_filesys ()
   // //   {
   // //     return false;
   // //   }
-  // printf("relase\n");
+  // printf ("relase\n");
   lock_release (&filesys_lock);
   // return true;
+}
+bool
+filesys_lock_held_by_current_thread ()
+{
+  return lock_held_by_current_thread (&filesys_lock);
 }
 /* Schedules a new process.  At entry, interrupts must be off and
    the running process's state must have been changed from

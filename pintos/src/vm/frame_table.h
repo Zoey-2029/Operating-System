@@ -9,13 +9,13 @@
 #include <list.h>
 #include <string.h>
 
-
 struct frame_table_entry
 {
   void *frame;
   struct thread *owner;
   struct sup_page_table_entry *spte;
   struct list_elem elem;
+  // bool used;
   // Maybe store information for memory mapped files here too?
 };
 
@@ -34,3 +34,6 @@ bool load_page (struct sup_page_table_entry *spte);
 
 void free_single_page (struct sup_page_table_entry *spte);
 void free_page_table (void);
+bool install_page (void *upage, void *kpage, bool writable);
+void lock_acquire_vm (void);
+void lock_release_vm (void);

@@ -21,6 +21,7 @@ struct sup_page_table_entry
   // uint64_t access_time;
   // bool dirty;
   // bool accessed;
+  bool pinned;
   bool read_only;
   struct list_elem elem;
   struct frame_table_entry *fte;

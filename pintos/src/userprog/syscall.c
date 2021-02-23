@@ -507,12 +507,16 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                   if (entry->source == SWAP || entry->source == MMAP
                       || entry->source == FILE)
                     {
-                      if (load_page (entry))
+                      if (load_page (entry)) {
+                        // printf("pinned\n");
+                        // entry->pinned = true;
                         return true;
-                      else {
-                        // printf("-1\n");
-                        return false;
                       }
+                      else
+                        {
+                          // printf("-1\n");
+                          return false;
+                        }
                     }
                 }
               else
@@ -537,26 +541,29 @@ sys_mmap (int fd, void *addr)
   lock_acquire_filesys ();
   /* search for the file to map */
   struct file_info *info = find_file_info (fd);
-  if (!info || !info->file) {
-    lock_release_filesys ();
-    return -1;
-  }
+  if (!info || !info->file)
+    {
+      lock_release_filesys ();
+      return -1;
+    }
 
   struct file *file = file_reopen (info->file);
   off_t file_size = file_length (file);
-  if (file_size == 0) {
-    lock_release_filesys ();
-    return -1;
-  }
+  if (file_size == 0)
+    {
+      lock_release_filesys ();
+      return -1;
+    }
 
   /* validate space in [addr, addr + file_size] is unmapped */
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
-      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr)) {
-        lock_release_filesys ();
-        return -1;
-      }
+      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr))
+        {
+          lock_release_filesys ();
+          return -1;
+        }
       curr_addr += PGSIZE;
     }
 
