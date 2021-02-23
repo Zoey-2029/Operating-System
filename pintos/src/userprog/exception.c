@@ -161,28 +161,12 @@ page_fault (struct intr_frame *f)
         {
           //  printf ("found in sup page table %p %d %d\n", fault_addr,
           //          entry->source, entry->swap_index);
-          if (entry->source == SWAP)
+          if (entry->source == SWAP || entry->source == MMAP)
             {
-              void *kpage = allocate_frame ();
-              //   printf("find_in_frame_table %p\n",
-              //   find_in_frame_table(kpage));
-              if (kpage != NULL)
-                {
-                  bool success = install_page (upage, kpage, true);
-                  // printf("success%d\n", success);
-                  if (success)
-                    {
-                      // set up the argument in stack
-                      // install_page_supplemental (((uint8_t *)PHYS_BASE) -
-                      // PGSIZE);
-                      read_from_block (kpage, entry->swap_index);
-                      return;
-                    }
-                  else
-                    {
-                      sys_exit (-1);
-                    }
-                }
+              if (load_page(entry))
+                  return;
+              else 
+                  sys_exit(-1);
             }
         }
       /* Validate the address. */

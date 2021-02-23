@@ -18,12 +18,14 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
+static struct mmapped_file_entry *find_mmapped_file_info (mapid_t mapid);
 
 /* Helper function(s). */
 static void free_file_info (void);
 static void free_child_processes_info (void);
 static bool check_memory_validity (const void *, unsigned, void *);
-static void free_page_table (void);
+// static void free_page_table (void);
+
 
 void
 syscall_init (void)
@@ -213,6 +215,30 @@ syscall_handler (struct intr_frame *f)
 
         int fd = *((int *)f->esp + 1);
         sys_close (fd);
+        break;
+      }
+
+    case SYS_MMAP:
+     {
+       args = 2;
+       if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+
+        int fd = *((int *)f->esp + 1);
+        void *addr = (void *)(*((int *)f->esp + 2));
+        f->eax = sys_mmap(fd, addr);
+        break;
+     }
+    
+    case SYS_MUNMAP:
+      {
+        args= 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+        mapid_t mapid = *((mapid_t *)f->esp + 1);
+        sys_munmap(mapid);
         break;
       }
 
@@ -478,6 +504,102 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
   return true;
 }
 
+mapid_t 
+sys_mmap (int fd, void *addr) 
+{
+  /* check validity of addr and fd */
+  if (addr == NULL || addr == 0 || pg_ofs (addr) != 0 || fd <= 1) 
+    return -1;
+
+  lock_acquire_filesys();
+  /* search for the file to map */
+  struct file_info *info = find_file_info (fd);
+  if (!info ||!info->file) 
+    return -1;
+  
+  struct file *file = file_reopen(info->file);
+  off_t file_size = file_length(file);
+  if (file_size == 0) 
+    return -1;
+  
+  /* validate space in [addr, addr + file_size] is unmapped */
+  void *curr_addr = addr;
+  while (curr_addr < addr + file_size) 
+    {
+      if (!is_user_vaddr(curr_addr) || find_in_table(curr_addr))
+        return -1;
+      curr_addr += PGSIZE;
+    }
+  
+
+  /* map the file into pages */
+  for (off_t offset = 0; offset < file_size; offset += PGSIZE)
+    {
+      
+      curr_addr = addr + offset;
+      uint32_t page_read_bytes = offset + PGSIZE < file_size ? 
+                                  PGSIZE : 
+                                  file_size - offset;
+      uint32_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+      struct sup_page_table_entry *spte = 
+                    install_page_supplemental (curr_addr);
+      
+      spte->file = file;
+      spte->file_offset = offset;
+      spte->read_bytes = page_read_bytes;
+      spte->zero_bytes = page_zero_bytes;
+      spte->source = MMAP;
+      spte->read_only = false;
+    }
+    
+    /* assign a unique mapid to the mapped file */
+    mapid_t mapid = 1;
+    if (!list_empty(&thread_current ()->mmapped_file_list))
+      mapid = list_entry(
+              list_back(&thread_current ()->mmapped_file_list), 
+              struct mmapped_file_entry, elem)->mapid + 1;
+    
+    /* keep track of the mma ped file */
+    struct mmapped_file_entry *mmap_entry = 
+              malloc(sizeof (struct mmapped_file_entry));
+    mmap_entry->mapid = mapid;
+    mmap_entry->file_size = file_size;
+    mmap_entry->file = file;
+    mmap_entry->user_vaddr = addr;
+    list_push_back(&thread_current ()->mmapped_file_list, 
+                    &mmap_entry->elem);                    
+    
+    /* assign a mapping id */
+    lock_release_filesys ();
+    return mapid;
+}
+
+void 
+sys_munmap (mapid_t mapid)
+{
+  
+  struct mmapped_file_entry *mp = find_mmapped_file_info (mapid);
+  if (!mp)
+    sys_exit(-1);
+  
+  lock_acquire_filesys ();
+  void *upage = mp->user_vaddr;
+  size_t file_size = mp->file_size;
+  
+  while (upage < mp->user_vaddr + file_size)
+  {
+    struct sup_page_table_entry *spte = find_in_table(upage);
+    free_single_page(spte);
+    upage += PGSIZE;
+  }
+  
+  file_close(mp->file);;
+  list_remove(&mp->elem);
+  free(mp);
+  lock_release_filesys ();
+}
+
 static struct file_info *
 find_file_info (int fd)
 {
@@ -491,6 +613,22 @@ find_file_info (int fd)
         {
           return f;
         }
+    }
+
+  return NULL;
+}
+
+static struct mmapped_file_entry *
+find_mmapped_file_info (mapid_t mapid)
+{
+  struct list_elem *e;
+  struct list *l = &thread_current ()->mmapped_file_list;
+  for (e = list_begin (l); e != list_end (l); e = list_next (e))
+    {
+      struct mmapped_file_entry *mf = 
+                    list_entry(e, struct mmapped_file_entry, elem);
+      if (mf->mapid == mapid)
+          return mf;
     }
 
   return NULL;
@@ -530,22 +668,22 @@ free_child_processes_info ()
     }
 }
 
-static void
-free_page_table ()
-{
-  struct list *l = &thread_current ()->page_table;
-  struct list_elem *e;
-  for (e = list_begin (l); e != list_end (l);)
-    {
-      struct sup_page_table_entry *entry
-          = list_entry (e, struct sup_page_table_entry, elem);
-      struct list_elem *next = list_next (e);
-      list_remove (e);
-      list_remove(&entry->fte->elem);
-      free (entry);
-      e = next;
-    }
-}
+// static void
+// free_page_table ()
+// {
+//   struct list *l = &thread_current ()->page_table;
+//   struct list_elem *e;
+//   for (e = list_begin (l); e != list_end (l);)
+//     {
+//       struct sup_page_table_entry *entry
+//           = list_entry (e, struct sup_page_table_entry, elem);
+//       struct list_elem *next = list_next (e);
+//       list_remove (e);
+//       list_remove(&entry->fte->elem);
+//       free (entry);
+//       e = next;
+//     }
+// }
 
 bool
 grow_stack (const void *fault_addr)

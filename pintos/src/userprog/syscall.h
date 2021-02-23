@@ -10,6 +10,7 @@
 #define MAX_FILE_SIZE 14
 
 typedef int pid_t;
+typedef int mapid_t;
 
 void syscall_init (void);
 
@@ -35,6 +36,8 @@ int sys_write (int fd, const void *buffer, unsigned size);
 void sys_seek (int fd, unsigned position);
 unsigned sys_tell (int fd);
 void sys_close (int fd);
+mapid_t sys_mmap (int fd, void *addr);
+void sys_munmap (mapid_t mapid);
 bool grow_stack (const void *fault_addr);
 
 #endif /* userprog/syscall.h */
