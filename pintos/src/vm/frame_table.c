@@ -108,12 +108,13 @@ evict_frame (void)
           //  printf ("found!\n");
           pagedir_clear_page (fte->owner->pagedir, fte->spte->user_vaddr);
           void *kpage = fte->frame;
+          // printf("evicting %p %d\n", fte->spte->user_vaddr, fte->spte->source);
           // printf ("kpage %p\n", kpage);
           size_t index = write_to_block (fte->frame);
           // printf ("kpage %p\n", kpage);
           fte->spte->source = SWAP;
           fte->spte->swap_index = index;
-          // list_remove (&fte->elem);
+          list_remove (&fte->elem);
           free (fte);
           return kpage;
         }
@@ -196,7 +197,7 @@ load_page (struct sup_page_table_entry *spte UNUSED)
     }
   if (!install_page (upage, kpage, writable))
     return false;
-  // printf("load page %d\n", spte->source);
+  // printf("load page %p from %d\n", spte->user_vaddr, spte->source);
   switch (spte->source)
     {
     case FILE:

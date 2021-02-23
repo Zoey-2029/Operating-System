@@ -7,6 +7,7 @@
 
 enum page_status
 {
+  DEFAULT,
   FILE, 
   STACK, 
   SWAP, 
