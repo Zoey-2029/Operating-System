@@ -133,6 +133,7 @@ evict_frame (void)
 bool
 load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
+  
   file_seek (spte->file, spte->file_offset);
   /* Load this page. */
   if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)

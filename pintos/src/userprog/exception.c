@@ -154,13 +154,14 @@ page_fault (struct intr_frame *f)
 
   if (user)
     {
-      // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
+     
       void *upage = pg_round_down (fault_addr);
       struct sup_page_table_entry *entry = find_in_table (upage);
       if (entry != NULL)
         {
           //  printf ("found in sup page table %p %d %d\n", fault_addr,
           //          entry->source, entry->swap_index);
+          //  printf ("f->esp: %p , fault: %p %d\n", f->esp, fault_addr, entry->source);
           if (entry->source == SWAP || entry->source == MMAP || entry->source == FILE)
             {
               if (load_page(entry))
