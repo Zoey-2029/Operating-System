@@ -41,25 +41,25 @@ enum page_status
 The enumeration above is used to indicate the source where to load the 
 page from
 
-
 struct sup_page_table_entry
 {
   void *user_vaddr;					==> User virtual address
   enum page_status source; 			==> Where to load the page from
-
-  bool pinned;						==> If the page is "pinning" in the frame
-  bool read_only;					==> If page is read only or writable
-  struct list_elem elem;			==> Supplamentary page table entry element
+  bool writable;					==> If page is writable
   struct frame_table_entry *fte;	==> Store frame info
+  struct list_elem elem;			==> Supplamentary page table entry element
+  /* locate swap */
+  bool pinned;						==> If the page is "pinning" in the frame
   size_t swap_index;				==> Record swap index
 
-  /* mmap file */
+  /* locate mmap file */
   struct file *file;		==> Store the file to load
   int file_offset;			==> Offset of the file (where to read/write)
   uint32_t read_bytes;		==> Number of bytes to read from file to frame
   uint32_t zero_bytes;		==> Number of bytes to set to 0 of the frame
-  bool writable;			==> If page is writable
+  
 };
+
 The struct above is the supplamentary page table implementation. Please find
 the details of member above
 
