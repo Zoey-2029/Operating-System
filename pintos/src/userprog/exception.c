@@ -151,7 +151,7 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-
+  
   void *upage = pg_round_down (fault_addr);
   lock_acquire_vm ();
   struct sup_page_table_entry *entry = find_in_table (upage);
@@ -173,10 +173,15 @@ page_fault (struct intr_frame *f)
         }
     }
   lock_release_vm ();
+
+  // if (user) 
+  //   printf("user \n");
+  // else 
+  //   printf ("kernel \n");
   if (user)
     {
       /* Validate the address.
-      exit user thread is it is truely invalid  */
+      exit user thread is it actually invalid  */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
           sys_exit (-1);
@@ -205,3 +210,18 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading", user ? "user" : "kernel");
   kill (f);
 }
+
+bool 
+check_user_addr_validity (void *user_vaddr, void *esp)
+{
+  if (user_vaddr == NULL || user_vaddr >= PHYS_BASE
+      || user_vaddr < (void *)0x08048000 || user_vaddr < esp - 32)
+      return false;
+    
+  lock_acquire_vm ();
+  bool valid = true;
+  valid = grow_stack (user_vaddr);
+  lock_release_vm ();
+  return valid;
+}
+

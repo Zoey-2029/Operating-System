@@ -10,4 +10,5 @@
 
 void exception_init (void);
 void exception_print_stats (void);
+bool check_user_addr_validity (void *user_vaddr, void *esp);
 #endif /* userprog/exception.h */

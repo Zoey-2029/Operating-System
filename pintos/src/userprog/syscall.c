@@ -526,13 +526,12 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                 {
                   lock_release_vm ();
                   return false;
-                  
+
                 }
             }
         }
       lock_release_vm ();
     }
-  // printf ("passes\n");
   return true;
 }
 
