@@ -151,16 +151,12 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-
+  
   void *upage = pg_round_down (fault_addr);
   lock_acquire_vm ();
   struct sup_page_table_entry *entry = find_in_table (upage);
   if (entry != NULL)
     {
-      //  printf ("found in sup page table %p %d %d\n", fault_addr,
-      //          entry->source, entry->swap_index);
-      //  printf ("f->esp: %p , fault: %p %d\n", f->esp, fault_addr,
-      //  entry->source);
       if (entry->source == SWAP || entry->source == MMAP
           || entry->source == FILE)
         {
@@ -171,39 +167,17 @@ page_fault (struct intr_frame *f)
             }
           else
             {
-              // printf ("asdsa\n");
               lock_release_vm ();
               sys_exit (-1);
             }
         }
     }
   lock_release_vm ();
-  if (user)
-    {
-      /* Validate the address. */
-      if (fault_addr == NULL || fault_addr >= PHYS_BASE
-          || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
-        {
-          /* Exit user thread if truly invalid. */
-          sys_exit (-1);
-        }
-      else
-        {
-          /* If valid, install the frame. */
-          lock_acquire_vm ();
-          if (grow_stack (fault_addr))
-            {
-              lock_release_vm ();
-              return;
-            }
-          else
-            {
-              lock_release_vm ();
-              sys_exit (-1);
-            }
-        }
-    }
-  // }
+
+  if (check_addr_validity (fault_addr, user, f->esp))
+    return;
+  else 
+    sys_exit(-1);
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
@@ -213,3 +187,17 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading", user ? "user" : "kernel");
   kill (f);
 }
+
+bool 
+check_addr_validity (void *user_vaddr, bool user, void *esp)
+{
+  if (user && ( !is_user_vaddr (user_vaddr) || user_vaddr < esp - 32))
+      return false;
+    
+  lock_acquire_vm ();
+  bool valid = true;
+  valid = grow_stack (user_vaddr);
+  lock_release_vm ();
+  return valid;
+}
+

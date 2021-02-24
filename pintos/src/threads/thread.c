@@ -572,31 +572,20 @@ thread_schedule_tail (struct thread *prev)
 void
 lock_acquire_filesys ()
 {
-  // // if (lock_held_by_current_thread (&filesys_lock))
-  // //   {
-  // //     return false;
-  // //   }
-  // printf ("acq\n");
   lock_acquire (&filesys_lock);
-  // return true;
 }
 
 void
 lock_release_filesys ()
 {
-  // // if (!lock_held_by_current_thread (&filesys_lock))
-  // //   {
-  // //     return false;
-  // //   }
-  // printf ("relase\n");
   lock_release (&filesys_lock);
-  // return true;
 }
 bool
 filesys_lock_held_by_current_thread ()
 {
   return lock_held_by_current_thread (&filesys_lock);
 }
+
 /* Schedules a new process.  At entry, interrupts must be off and
    the running process's state must have been changed from
    running to some other state.  This function finds another

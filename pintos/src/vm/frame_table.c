@@ -14,16 +14,14 @@ frame_table_init ()
 void
 lock_acquire_vm ()
 {
-  // printf ("lock_acquire_vm %d\n", thread_current()->tid);
   lock_acquire (&f_lock);
-  // printf ("lock_acquire_vm done %d\n", thread_current()->tid);
 }
+
+
 void
 lock_release_vm ()
 {
-  // printf ("lock_release_vm %d\n", thread_current()->tid);
   lock_release (&f_lock);
-  // printf ("lock_release_vm done %d\n", thread_current()->tid);
 }
 
 void *
@@ -33,18 +31,14 @@ allocate_frame ()
   void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
   /*If cannot get a page, evict one*/
   if (kpage == NULL)
-    {
-
       kpage = evict_frame ();
-    }
 
   struct frame_table_entry *frame_table_entry
       = calloc (1, sizeof *frame_table_entry);
   frame_table_entry->owner = cur;
   frame_table_entry->frame = kpage;
-  // frame_table_entry->spte = NULL;
+  frame_table_entry->spte = NULL;
   list_push_back (&frame_table, &frame_table_entry->elem);
-  // printf("frame %p\n", find_in_frame_table(kpage));
 
   return kpage;
 }
@@ -52,7 +46,6 @@ allocate_frame ()
 void
 free_frame (void *kpage)
 {
-  // printf("free frame\n");
   struct list_elem *e;
 
   for (e = list_begin (&frame_table); e != list_end (&frame_table);
@@ -62,7 +55,6 @@ free_frame (void *kpage)
           = list_entry (e, struct frame_table_entry, elem);
       if (entry->frame == kpage)
         {
-          printf ("%d removing kpage %p \n", thread_current ()->tid, kpage);
           palloc_free_page (kpage);
           list_remove (e);
           free (entry);
@@ -92,7 +84,7 @@ find_in_frame_table (void *kpage)
 void *
 evict_frame (void)
 {
-  struct thread *curr = thread_current ();
+  //struct thread *curr = thread_current ();
   while (!list_empty (&frame_table))
     {
       struct list_elem *e = list_pop_front (&frame_table);
@@ -104,26 +96,21 @@ evict_frame (void)
         {
           list_push_back (&frame_table, &fte->elem);
         }
-      else if (fte->spte->pinned
-               || pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
-        {
-          // printf ("bbbb\n");
-          pagedir_set_accessed (curr->pagedir, fte->spte->user_vaddr, false);
-          list_push_back (&frame_table, &fte->elem);
-        }
+      // else if (fte->spte->pinned
+      //          || pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
+      //   {
+      //      printf ("bbbb\n");
+      //     pagedir_set_accessed (curr->pagedir, fte->spte->user_vaddr, false);
+      //     list_push_back (&frame_table, &fte->elem);
+      //   }
       else
         {
-          //  printf ("found!\n");
           pagedir_clear_page (fte->owner->pagedir, fte->spte->user_vaddr);
           void *kpage = fte->frame;
-          // printf ("evicting %p %d\n", fte->spte->user_vaddr,
-          //         fte->spte->source);
           size_t index = write_to_block (fte->frame);
-          // printf ("kpage %p\n", kpage);
           fte->spte->source = SWAP;
           fte->spte->swap_index = index;
           fte->spte->fte = NULL;
-          // palloc_free_page (kpage);
           list_remove (&fte->elem);
           free (fte);
           return kpage;
@@ -136,22 +123,13 @@ bool
 load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
   file_seek (spte->file, spte->file_offset);
-  /* Load this page. */
   if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
-    {
       return false;
-    }
 
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
   memset (kpage + spte->read_bytes, 0, spte->zero_bytes);
 
   return true;
-}
-
-bool
-load_page_from_stack (struct sup_page_table_entry *entry UNUSED)
-{
-  return false;
 }
 
 bool
@@ -166,12 +144,9 @@ load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 {
   file_seek (spte->file, spte->file_offset);
 
-  // read bytes from the file
   int n_read = file_read (spte->file, kpage, spte->read_bytes);
   if (n_read != (int)spte->read_bytes)
-    {
       return false;
-    }
 
   /* The remaining bytes are zeros. */
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
@@ -185,23 +160,18 @@ load_page (struct sup_page_table_entry *spte)
   void *upage = spte->user_vaddr;
   spte->pinned = true;
   void *kpage = allocate_frame ();
-  bool writable = true;
-
   if (!kpage)
-    {
       return false;
-    }
+
+  bool writable = true;
   if (spte->source == FILE)
-    {
       writable = spte->writable;
-    }
 
   if (!install_page (upage, kpage, writable))
     {
-      printf ("faild\n");
       free_frame (kpage);
       return false;
-    }
+    }    
 
   bool success = false;
   switch (spte->source)
@@ -219,6 +189,9 @@ load_page (struct sup_page_table_entry *spte)
       break;
     }
 
+  if (!success)
+    free_frame (kpage);
+
   spte->pinned = false;
   return success;
 }
@@ -226,14 +199,11 @@ load_page (struct sup_page_table_entry *spte)
 void
 free_single_page (struct sup_page_table_entry *spte)
 {
-
-  /* write file back to disk is  */
+  /* write file back to disk only when the bits are dirty */
   if (spte->source == MMAP && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
-    {
       file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
                      spte->file_offset);
-    }
 
   if (spte->fte)
     {
@@ -263,25 +233,30 @@ free_page_table ()
     }
 }
 
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with allocate_frame ();
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+
 bool
 install_page (void *upage, void *kpage, bool writable)
 {
-  struct thread *t = thread_current ();
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
+  struct thread *t = thread_current ();
   if (pagedir_get_page (t->pagedir, upage) != NULL
       || !pagedir_set_page (t->pagedir, upage, kpage, writable))
-    {
-      printf ("pagedir failed\n");
-      return false;
-    }
+    return false;
 
   struct frame_table_entry *entry = find_in_frame_table (kpage);
   if (entry == NULL)
-    {
-      printf ("%d some NULL %p\n", thread_current ()->tid, kpage);
       return false;
-    }
+
   struct sup_page_table_entry *spte = install_page_supplemental (upage);
   entry->spte = spte;
   spte->fte = entry;

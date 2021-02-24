@@ -9,5 +9,4 @@ void process_exit (void);
 void process_activate (void);
 
 struct thread_info *get_child_process(tid_t, struct list*);
-/* load() helpers. */
 #endif /* userprog/process.h */

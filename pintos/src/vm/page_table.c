@@ -1,22 +1,20 @@
-// #include "vm/page_table.h"
 #include "vm/frame_table.h"
 
 struct sup_page_table_entry *
 install_page_supplemental (void *upage)
 {
-
   struct sup_page_table_entry *page_table_entry = find_in_table (upage);
   if (page_table_entry == NULL)
     {
       page_table_entry = calloc (1, sizeof *page_table_entry);
       page_table_entry->user_vaddr = upage;
-      list_push_back (&thread_current ()->page_table, &page_table_entry->elem);
+      page_table_entry->source = DEFAULT;
+      list_push_back (&thread_current ()->page_table, 
+                      &page_table_entry->elem);
       return page_table_entry;
     }
   else
-    {
       return page_table_entry;
-    }
 }
 
 struct sup_page_table_entry *
@@ -30,9 +28,7 @@ find_in_table (void *upage)
       struct sup_page_table_entry *f
           = list_entry (e, struct sup_page_table_entry, elem);
       if (f->user_vaddr == upage)
-        {
           return f;
-        }
     }
   return NULL;
 }

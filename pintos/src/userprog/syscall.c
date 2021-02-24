@@ -37,7 +37,6 @@ syscall_handler (struct intr_frame *f)
 {
   if (!check_memory_validity (f->esp, 1 * sizeof (int *), NULL))
     sys_exit (-1);
-  // printf("%d\n",*(int *)f->esp );
   /* Number of args to check validity. */
   unsigned args = 0;
   switch (*(int *)f->esp)
@@ -480,16 +479,9 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
   for (unsigned i = 0; i < size; i++)
     {
       const void *addr = virtual_addr + i;
-      /* Invalid user virtual pointer:
-       NULL pointer,
-       a pointer below the code segment
-       a pointer to kernel virtual address space,
-       a pointer to unmapped virtual memory.  */
-      if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
-        {
-          // printf ("fff virtual_addr %p\n", addr);
+      if (!is_user_vaddr (addr))
           return false;
-        }
+
       lock_acquire_vm ();
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
         {
@@ -514,14 +506,11 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                     {
                       if (load_page (entry))
                         {
-                          // printf("pinned\n");
-                          // entry->pinned = true;
                           lock_release_vm ();
                           return true;
                         }
                       else
                         {
-                          // printf("-1\n");
                           lock_release_vm ();
                           return false;
                         }
@@ -529,7 +518,6 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                 }
               else
                 {
-                  // printf("-1\n");
                   lock_release_vm ();
                   return false;
                 }
@@ -564,23 +552,22 @@ sys_mmap (int fd, void *addr)
       lock_release_filesys ();
       return -1;
     }
+  lock_release_filesys ();
 
   /* validate space in [addr, addr + file_size] is unmapped */
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
       if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr))
-        {
-          lock_release_filesys ();
           return -1;
-        }
       curr_addr += PGSIZE;
     }
+
+  
   lock_acquire_vm ();
   /* map the file into pages */
   for (off_t offset = 0; offset < file_size; offset += PGSIZE)
     {
-
       curr_addr = addr + offset;
       uint32_t page_read_bytes
           = offset + PGSIZE < file_size ? PGSIZE : file_size - offset;
@@ -594,18 +581,16 @@ sys_mmap (int fd, void *addr)
       spte->read_bytes = page_read_bytes;
       spte->zero_bytes = page_zero_bytes;
       spte->source = MMAP;
-      spte->read_only = false;
+      spte->writable = true;
     }
   lock_release_vm ();
   /* assign a unique mapid to the mapped file */
   mapid_t mapid = 1;
   if (!list_empty (&thread_current ()->mmapped_file_list))
     mapid = list_entry (list_back (&thread_current ()->mmapped_file_list),
-                        struct mmapped_file_entry, elem)
-                ->mapid
-            + 1;
+                        struct mmapped_file_entry, elem) ->mapid + 1;
 
-  /* keep track of the mma ped file */
+  /* keep track of the mmaped file */
   struct mmapped_file_entry *mmap_entry
       = malloc (sizeof (struct mmapped_file_entry));
   mmap_entry->mapid = mapid;
@@ -613,8 +598,6 @@ sys_mmap (int fd, void *addr)
   mmap_entry->file = file;
   mmap_entry->user_vaddr = addr;
   list_push_back (&thread_current ()->mmapped_file_list, &mmap_entry->elem);
-  /* assign a mapping id */
-  lock_release_filesys ();
   return mapid;
 }
 
@@ -718,21 +701,13 @@ grow_stack (const void *fault_addr)
   if (kpage != NULL)
     {
       void *upage = pg_round_down (fault_addr);
-      bool writable = true;
-
-      if (!install_page (upage, kpage, writable))
+      if (!install_page (upage, kpage, true))
         {
           free_frame (kpage);
           return false;
         }
       else
-        {
           return true;
-        }
     }
-  else
-    {
-      free_frame (kpage);
-      return false;
-    }
+  return false;
 }

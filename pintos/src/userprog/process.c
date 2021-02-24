@@ -498,7 +498,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       upage += PGSIZE;
     }
   lock_release_vm ();
-  // printf("load segment done\n");
   return true;
 }
 
@@ -514,23 +513,14 @@ setup_stack (void **esp, const char *file_name)
 
   if (kpage != NULL)
     {
-
       success = install_page (((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
 
       if (success)
-        {
-          // set up the argument in stack
           *esp = setup_arguments_in_stack (file_name);
-        }
       else
-        {
-          // printf("setup_stack\n")
           free_frame (kpage);
-        }
     }
 
-  // printf("setup_stack kpage %p\n", kpage);
-  // printf("setup_stack %p\n", esp);
   lock_release_vm ();
   return success;
 }
@@ -602,12 +592,4 @@ setup_arguments_in_stack (const char *file_name)
   return stack_ptr;
 }
 
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with allocate_frame ();
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
+
