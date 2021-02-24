@@ -486,10 +486,8 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
        a pointer to kernel virtual address space,
        a pointer to unmapped virtual memory.  */
       if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
-        {
-          // printf ("fff virtual_addr %p\n", addr);
           return false;
-        }
+
       lock_acquire_vm ();
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
         {
@@ -514,14 +512,11 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                     {
                       if (load_page (entry))
                         {
-                          // printf("pinned\n");
-                          // entry->pinned = true;
                           lock_release_vm ();
                           return true;
                         }
                       else
                         {
-                          // printf("-1\n");
                           lock_release_vm ();
                           return false;
                         }
@@ -529,9 +524,9 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                 }
               else
                 {
-                  // printf("-1\n");
                   lock_release_vm ();
                   return false;
+                  
                 }
             }
         }
@@ -718,21 +713,13 @@ grow_stack (const void *fault_addr)
   if (kpage != NULL)
     {
       void *upage = pg_round_down (fault_addr);
-      bool writable = true;
-
-      if (!install_page (upage, kpage, writable))
+      if (!install_page (upage, kpage, true))
         {
           free_frame (kpage);
           return false;
         }
       else
-        {
           return true;
-        }
     }
-  else
-    {
-      free_frame (kpage);
-      return false;
-    }
+  return false;
 }

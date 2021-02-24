@@ -157,10 +157,6 @@ page_fault (struct intr_frame *f)
   struct sup_page_table_entry *entry = find_in_table (upage);
   if (entry != NULL)
     {
-      //  printf ("found in sup page table %p %d %d\n", fault_addr,
-      //          entry->source, entry->swap_index);
-      //  printf ("f->esp: %p , fault: %p %d\n", f->esp, fault_addr,
-      //  entry->source);
       if (entry->source == SWAP || entry->source == MMAP
           || entry->source == FILE)
         {
@@ -171,7 +167,6 @@ page_fault (struct intr_frame *f)
             }
           else
             {
-              // printf ("asdsa\n");
               lock_release_vm ();
               sys_exit (-1);
             }
@@ -180,13 +175,11 @@ page_fault (struct intr_frame *f)
   lock_release_vm ();
   if (user)
     {
-      /* Validate the address. */
+      /* Validate the address.
+      exit user thread is it is truely invalid  */
       if (fault_addr == NULL || fault_addr >= PHYS_BASE
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
-        {
-          /* Exit user thread if truly invalid. */
           sys_exit (-1);
-        }
       else
         {
           /* If valid, install the frame. */
@@ -203,7 +196,6 @@ page_fault (struct intr_frame *f)
             }
         }
     }
-  // }
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

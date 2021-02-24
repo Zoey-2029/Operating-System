@@ -4,7 +4,6 @@
 struct sup_page_table_entry *
 install_page_supplemental (void *upage)
 {
-
   struct sup_page_table_entry *page_table_entry = find_in_table (upage);
   if (page_table_entry == NULL)
     {
@@ -14,9 +13,7 @@ install_page_supplemental (void *upage)
       return page_table_entry;
     }
   else
-    {
       return page_table_entry;
-    }
 }
 
 struct sup_page_table_entry *
@@ -30,9 +27,7 @@ find_in_table (void *upage)
       struct sup_page_table_entry *f
           = list_entry (e, struct sup_page_table_entry, elem);
       if (f->user_vaddr == upage)
-        {
           return f;
-        }
     }
   return NULL;
 }

@@ -18,9 +18,6 @@ struct sup_page_table_entry
 {
   void *user_vaddr;
   enum page_status source;
-  // uint64_t access_time;
-  // bool dirty;
-  // bool accessed;
   bool pinned;
   bool read_only;
   struct list_elem elem;
