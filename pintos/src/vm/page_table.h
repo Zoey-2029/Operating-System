@@ -9,7 +9,6 @@ enum page_status
 {
   DEFAULT,
   FILE, 
-  STACK, 
   SWAP, 
   MMAP
 };
@@ -18,20 +17,20 @@ struct sup_page_table_entry
 {
   void *user_vaddr;
   enum page_status source;
-  // uint64_t access_time;
-  // bool dirty;
-  // bool accessed;
-  bool read_only;
-  struct list_elem elem;
+  bool writable;
   struct frame_table_entry *fte;
+  struct list_elem elem;
+
+  /* locate swap */
+  bool pinned;
   size_t swap_index;
 
-  /* mmap file */
+  /* locate mmap file */
   struct file *file;
   int file_offset;
   uint32_t read_bytes;
   uint32_t zero_bytes;
-  bool writable;
+  
 };
 
 struct sup_page_table_entry *install_page_supplemental (void *upage);

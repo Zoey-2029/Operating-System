@@ -37,7 +37,6 @@ syscall_handler (struct intr_frame *f)
 {
   if (!check_memory_validity (f->esp, 1 * sizeof (int *), NULL))
     sys_exit (-1);
-  // printf("%d\n",*(int *)f->esp );
   /* Number of args to check validity. */
   unsigned args = 0;
   switch (*(int *)f->esp)
@@ -264,7 +263,7 @@ sys_exit (int status)
 {
   struct thread_info *info = get_child_process (
       thread_current ()->tid, &thread_current ()->parent->child_processes);
-
+  // printf("%d\n", thread_current ()->tid);
   printf ("%s: exit(%d)\n", thread_current ()->name, status);
   if (info)
     info->exit_status = status;
@@ -272,7 +271,10 @@ sys_exit (int status)
   /* Free allocated resources. */
   free_file_info ();
   free_child_processes_info ();
+
+  lock_acquire_vm ();
   free_page_table ();
+  lock_release_vm ();
 
   thread_exit ();
 }
@@ -419,6 +421,7 @@ sys_write (int fd, const void *buffer, unsigned size)
       lock_release_filesys ();
       return -1;
     }
+
   off_t bytes_written = file_write (info->file, buffer, size);
   lock_release_filesys ();
   return bytes_written;
@@ -470,61 +473,42 @@ sys_close (int fd)
 static bool
 check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
 {
-  // at least check one pointer
-  // printf ("virtual_addr %p\n", virtual_addr);
+  // check at least one pointer
   if (size == 0)
     size = 1;
+  
+  lock_acquire_vm ();
+
   for (unsigned i = 0; i < size; i++)
     {
       const void *addr = virtual_addr + i;
-      /* Invalid user virtual pointer:
-       NULL pointer,
-       a pointer below the code segment
-       a pointer to kernel virtual address space,
-       a pointer to unmapped virtual memory.  */
-      if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
-        {
-          // printf ("fff virtual_addr %p\n", addr);
-          return false;
-        }
+      if (!is_user_vaddr (addr))
+        goto INVALID_ADDR;
+          
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
         {
           /* If page not found but addr is above esp,
              we need to allocate memory. */
-          if (esp && esp <= addr)
+          if (esp && esp <= addr) 
             {
-              // printf("fault above esp\n");
-              grow_stack (addr);
-              continue;
+              if (!grow_stack (addr))
+                goto INVALID_ADDR;
             }
           else
             {
               void *upage = pg_round_down (addr);
               struct sup_page_table_entry *entry = find_in_table (upage);
-              //
-              if (entry != NULL)
-                {
-                  if (entry->source == SWAP || entry->source == MMAP
-                      || entry->source == FILE)
-                    {
-                      if (load_page (entry))
-                        return true;
-                      else {
-                        // printf("-1\n");
-                        return false;
-                      }
-                    }
-                }
-              else
-                {
-                  // printf("-1\n");
-                  return false;
-                }
+              if (!load_page (entry))
+                goto INVALID_ADDR;
             }
         }
     }
-  // printf ("passes\n");
+  lock_release_vm ();
   return true;
+
+  INVALID_ADDR:
+  lock_release_vm ();
+  return false;
 }
 
 mapid_t
@@ -537,33 +521,35 @@ sys_mmap (int fd, void *addr)
   lock_acquire_filesys ();
   /* search for the file to map */
   struct file_info *info = find_file_info (fd);
-  if (!info || !info->file) {
-    lock_release_filesys ();
-    return -1;
-  }
+  if (!info || !info->file)
+    {
+      lock_release_filesys ();
+      return -1;
+    }
 
   struct file *file = file_reopen (info->file);
   off_t file_size = file_length (file);
-  if (file_size == 0) {
-    lock_release_filesys ();
-    return -1;
-  }
+  if (file_size == 0)
+    {
+      lock_release_filesys ();
+      return -1;
+    }
+  lock_release_filesys ();
 
   /* validate space in [addr, addr + file_size] is unmapped */
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
-      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr)) {
-        lock_release_filesys ();
-        return -1;
-      }
+      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr))
+          return -1;
       curr_addr += PGSIZE;
     }
 
+  
+  lock_acquire_vm ();
   /* map the file into pages */
   for (off_t offset = 0; offset < file_size; offset += PGSIZE)
     {
-
       curr_addr = addr + offset;
       uint32_t page_read_bytes
           = offset + PGSIZE < file_size ? PGSIZE : file_size - offset;
@@ -577,18 +563,16 @@ sys_mmap (int fd, void *addr)
       spte->read_bytes = page_read_bytes;
       spte->zero_bytes = page_zero_bytes;
       spte->source = MMAP;
-      spte->read_only = false;
+      spte->writable = true;
     }
-
+  lock_release_vm ();
   /* assign a unique mapid to the mapped file */
   mapid_t mapid = 1;
   if (!list_empty (&thread_current ()->mmapped_file_list))
     mapid = list_entry (list_back (&thread_current ()->mmapped_file_list),
-                        struct mmapped_file_entry, elem)
-                ->mapid
-            + 1;
+                        struct mmapped_file_entry, elem) ->mapid + 1;
 
-  /* keep track of the mma ped file */
+  /* keep track of the mmaped file */
   struct mmapped_file_entry *mmap_entry
       = malloc (sizeof (struct mmapped_file_entry));
   mmap_entry->mapid = mapid;
@@ -596,16 +580,12 @@ sys_mmap (int fd, void *addr)
   mmap_entry->file = file;
   mmap_entry->user_vaddr = addr;
   list_push_back (&thread_current ()->mmapped_file_list, &mmap_entry->elem);
-
-  /* assign a mapping id */
-  lock_release_filesys ();
   return mapid;
 }
 
 void
 sys_munmap (mapid_t mapid)
 {
-
   struct mmapped_file_entry *mp = find_mmapped_file_info (mapid);
   if (!mp)
     sys_exit (-1);
@@ -637,9 +617,7 @@ find_file_info (int fd)
     {
       struct file_info *f = list_entry (e, struct file_info, elem);
       if (f->fd == fd)
-        {
           return f;
-        }
     }
 
   return NULL;
@@ -695,64 +673,20 @@ free_child_processes_info ()
     }
 }
 
-// static void
-// free_page_table ()
-// {
-//   struct list *l = &thread_current ()->page_table;
-//   struct list_elem *e;
-//   for (e = list_begin (l); e != list_end (l);)
-//     {
-//       struct sup_page_table_entry *entry
-//           = list_entry (e, struct sup_page_table_entry, elem);
-//       struct list_elem *next = list_next (e);
-//       list_remove (e);
-//       list_remove(&entry->fte->elem);
-//       free (entry);
-//       e = next;
-//     }
-// }
-
 bool
 grow_stack (const void *fault_addr)
 {
   void *kpage = allocate_frame ();
-  // printf("after grow_stack\n");
   if (kpage != NULL)
     {
       void *upage = pg_round_down (fault_addr);
-      bool writable = true;
-      // bool success = pagedir_set_page (thread_current ()->pagedir, upage,
-      //                                  kpage, writable);
-      // if (success)
-      //   {
-      //     /* Create entry in supplemental page table. */
-      //    //  printf ("install success %p\n", upage);
-      //     struct frame_table_entry *entry = find_in_frame_table(kpage);
-      // struct sup_page_table_entry *spte = install_page_supplemental (upage);
-      // entry->spte = spte;
-
-      //     return true;
-      //   }
-      // else
-      //   {
-      //    //  printf ("install failed\n");
-      //     free_frame (kpage);
-      //     return false;
-      //   }
-      if (!install_page (upage, kpage, writable))
+      if (!install_page (upage, kpage, true))
         {
           free_frame (kpage);
           return false;
         }
       else
-        {
           return true;
-        }
     }
-  else
-    {
-      // printf ("allocate failed\n");
-      free_frame (kpage);
-      return false;
-    }
+  return false;
 }

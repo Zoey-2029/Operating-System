@@ -39,19 +39,18 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = allocate_frame ();
+  fn_copy = calloc (1, strlen (file_name) + 1);
   if (fn_copy == NULL)
     {
-      free_frame (fn_copy);
       return TID_ERROR;
     }
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Process the command line and pass arguments to thread */
-  char *fn_copy_2 = allocate_frame ();
+  char *fn_copy_2 = calloc (1, strlen (file_name) + 1);
   if (fn_copy_2 == NULL)
     {
-      free_frame (fn_copy);
+      free (fn_copy);
       return TID_ERROR;
     }
   char *to_free = fn_copy_2;
@@ -61,9 +60,9 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
-  free_frame (to_free);
+  free (to_free);
   if (tid == TID_ERROR)
-    free_frame (fn_copy);
+    free (fn_copy);
 
   return tid;
 }
@@ -85,7 +84,7 @@ start_process (void *file_name_)
   lock_acquire_filesys ();
   success = load (file_name, &if_.eip, &if_.esp);
   lock_release_filesys ();
-  free_frame (file_name);
+  free (file_name);
 
   /* Save the load status. */
   struct thread_info *info = get_child_process (
@@ -302,19 +301,18 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Process file_name to get the executables file name
      Open executable file. */
-  char *fn_copy = allocate_frame ();
+  char *fn_copy = calloc (1, strlen (file_name) + 1);
   if (fn_copy == NULL)
     return false;
   char *to_free = fn_copy;
   char *argv;
   strlcpy (fn_copy, file_name, PGSIZE);
-  // lock_acquire_filesys ();
   char *program_name = strtok_r (fn_copy, " ", &argv);
   file = filesys_open (program_name);
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", program_name);
-      free_frame (to_free);
+      free (to_free);
       goto done;
     }
 
@@ -329,11 +327,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr) || ehdr.e_phnum > 1024)
     {
       printf ("load: %s: error loading executable\n", program_name);
-      free_frame (to_free);
+      free (to_free);
       goto done;
     }
 
-  free_frame (to_free);
+  free (to_free);
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++)
@@ -475,6 +473,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   // file_seek (file, ofs);
+  // printf("aaaa\n");
+  lock_acquire_vm ();
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -497,7 +497,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
-  // printf("load segment done\n");
+  lock_release_vm ();
   return true;
 }
 
@@ -508,24 +508,20 @@ setup_stack (void **esp, const char *file_name)
 {
   uint8_t *kpage;
   bool success = false;
-
+  lock_acquire_vm ();
   kpage = allocate_frame ();
+
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
+
       if (success)
-        {
-          // set up the argument in stack
-          // install_page_supplemental (((uint8_t *)PHYS_BASE) - PGSIZE);
           *esp = setup_arguments_in_stack (file_name);
-        }
       else
-        {
           free_frame (kpage);
-        }
     }
-  // printf("setup_stack kpage %p\n", kpage);
-  // printf("setup_stack %p\n", esp);
+
+  lock_release_vm ();
   return success;
 }
 
@@ -536,7 +532,7 @@ setup_arguments_in_stack (const char *file_name)
 {
 
   // first copy argv to argv_copy
-  char *fn_copy = allocate_frame ();
+  char *fn_copy = calloc (1, strlen (file_name) + 1);
   char *to_free = fn_copy;
   if (fn_copy == NULL)
     return NULL;
@@ -591,41 +587,9 @@ setup_arguments_in_stack (const char *file_name)
 
   /* Push a fake "return address". */
   stack_ptr -= sizeof (void *);
-  free_frame (to_free);
+  free (to_free);
 
   return stack_ptr;
 }
 
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with allocate_frame ();
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-  // printf("%p upage\n", upage);
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  if (pagedir_get_page (t->pagedir, upage) != NULL
-      || !pagedir_set_page (t->pagedir, upage, kpage, writable))
-    {
-      return false;
-    }
 
-  struct frame_table_entry *entry = find_in_frame_table (kpage);
-  struct sup_page_table_entry *spte = install_page_supplemental (upage);
-  if (entry == NULL || spte == NULL)
-    {
-      // printf("kpage %p, %d %d\n", kpage, entry == NULL, spte == NULL);
-      return false;
-    }
-  entry->spte = spte;
-  spte->fte = entry;
-  return true;
-}
