@@ -174,33 +174,10 @@ page_fault (struct intr_frame *f)
     }
   lock_release_vm ();
 
-  // if (user) 
-  //   printf("user \n");
-  // else 
-  //   printf ("kernel \n");
-  if (user)
-    {
-      /* Validate the address.
-      exit user thread is it actually invalid  */
-      if (fault_addr == NULL || fault_addr >= PHYS_BASE
-          || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
-          sys_exit (-1);
-      else
-        {
-          /* If valid, install the frame. */
-          lock_acquire_vm ();
-          if (grow_stack (fault_addr))
-            {
-              lock_release_vm ();
-              return;
-            }
-          else
-            {
-              lock_release_vm ();
-              sys_exit (-1);
-            }
-        }
-    }
+  if (check_addr_validity (fault_addr, user, f->esp))
+    return;
+  else 
+    sys_exit(-1);
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
@@ -212,10 +189,10 @@ page_fault (struct intr_frame *f)
 }
 
 bool 
-check_user_addr_validity (void *user_vaddr, void *esp)
+check_addr_validity (void *user_vaddr, bool user, void *esp)
 {
-  if (user_vaddr == NULL || user_vaddr >= PHYS_BASE
-      || user_vaddr < (void *)0x08048000 || user_vaddr < esp - 32)
+  if (user && (user_vaddr == NULL || user_vaddr >= PHYS_BASE
+      || user_vaddr < (void *)0x08048000 || user_vaddr < esp - 32))
       return false;
     
   lock_acquire_vm ();

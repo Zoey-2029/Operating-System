@@ -37,7 +37,6 @@ syscall_handler (struct intr_frame *f)
 {
   if (!check_memory_validity (f->esp, 1 * sizeof (int *), NULL))
     sys_exit (-1);
-  // printf("%d\n",*(int *)f->esp );
   /* Number of args to check validity. */
   unsigned args = 0;
   switch (*(int *)f->esp)
@@ -526,12 +525,12 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                 {
                   lock_release_vm ();
                   return false;
-
                 }
             }
         }
       lock_release_vm ();
     }
+  // printf ("passes\n");
   return true;
 }
 
