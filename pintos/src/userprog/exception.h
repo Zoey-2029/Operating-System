@@ -10,5 +10,5 @@
 
 void exception_init (void);
 void exception_print_stats (void);
-bool check_addr_validity (void *user_vaddr, bool user, void *esp);
+bool check_addr_validity_then_grow_stack (void *addr, bool user, void *esp);
 #endif /* userprog/exception.h */

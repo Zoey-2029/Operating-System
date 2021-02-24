@@ -157,6 +157,9 @@ load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 bool
 load_page (struct sup_page_table_entry *spte)
 {
+  if (!spte)
+    return false;
+    
   void *upage = spte->user_vaddr;
   spte->pinned = true;
   void *kpage = allocate_frame ();

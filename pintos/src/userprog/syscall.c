@@ -421,6 +421,7 @@ sys_write (int fd, const void *buffer, unsigned size)
       lock_release_filesys ();
       return -1;
     }
+
   off_t bytes_written = file_write (info->file, buffer, size);
   lock_release_filesys ();
   return bytes_written;
@@ -472,61 +473,42 @@ sys_close (int fd)
 static bool
 check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
 {
-  // at least check one pointer
-  // printf ("virtual_addr %p\n", virtual_addr);
+  // check at least one pointer
   if (size == 0)
     size = 1;
+  
+  lock_acquire_vm ();
+
   for (unsigned i = 0; i < size; i++)
     {
       const void *addr = virtual_addr + i;
       if (!is_user_vaddr (addr))
-          return false;
-
-      lock_acquire_vm ();
+        goto INVALID_ADDR;
+          
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
         {
           /* If page not found but addr is above esp,
              we need to allocate memory. */
-          if (esp && esp <= addr)
+          if (esp && esp <= addr) 
             {
-              // printf("fault above esp\n");
-              grow_stack (addr);
-              lock_release_vm ();
-              continue;
+              if (!grow_stack (addr))
+                goto INVALID_ADDR;
             }
           else
             {
               void *upage = pg_round_down (addr);
               struct sup_page_table_entry *entry = find_in_table (upage);
-              //
-              if (entry != NULL)
-                {
-                  if (entry->source == SWAP || entry->source == MMAP
-                      || entry->source == FILE)
-                    {
-                      if (load_page (entry))
-                        {
-                          lock_release_vm ();
-                          return true;
-                        }
-                      else
-                        {
-                          lock_release_vm ();
-                          return false;
-                        }
-                    }
-                }
-              else
-                {
-                  lock_release_vm ();
-                  return false;
-                }
+              if (!load_page (entry))
+                goto INVALID_ADDR;
             }
         }
-      lock_release_vm ();
     }
-  // printf ("passes\n");
+  lock_release_vm ();
   return true;
+
+  INVALID_ADDR:
+  lock_release_vm ();
+  return false;
 }
 
 mapid_t
@@ -604,7 +586,6 @@ sys_mmap (int fd, void *addr)
 void
 sys_munmap (mapid_t mapid)
 {
-
   struct mmapped_file_entry *mp = find_mmapped_file_info (mapid);
   if (!mp)
     sys_exit (-1);
@@ -636,9 +617,7 @@ find_file_info (int fd)
     {
       struct file_info *f = list_entry (e, struct file_info, elem);
       if (f->fd == fd)
-        {
           return f;
-        }
     }
 
   return NULL;
