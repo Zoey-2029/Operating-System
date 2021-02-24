@@ -39,7 +39,7 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = calloc (1, strlen(file_name) + 1);
+  fn_copy = calloc (1, strlen (file_name) + 1);
   if (fn_copy == NULL)
     {
       return TID_ERROR;
@@ -47,7 +47,7 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Process the command line and pass arguments to thread */
-  char *fn_copy_2 = calloc (1, strlen(file_name) + 1);
+  char *fn_copy_2 = calloc (1, strlen (file_name) + 1);
   if (fn_copy_2 == NULL)
     {
       free (fn_copy);
@@ -301,13 +301,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   /* Process file_name to get the executables file name
      Open executable file. */
-  char *fn_copy = calloc (1, strlen(file_name) + 1);
+  char *fn_copy = calloc (1, strlen (file_name) + 1);
   if (fn_copy == NULL)
     return false;
   char *to_free = fn_copy;
   char *argv;
   strlcpy (fn_copy, file_name, PGSIZE);
-  // lock_acquire_filesys ();
   char *program_name = strtok_r (fn_copy, " ", &argv);
   file = filesys_open (program_name);
   if (file == NULL)
@@ -474,6 +473,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
 
   // file_seek (file, ofs);
+  // printf("aaaa\n");
+  lock_acquire_vm ();
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -496,6 +497,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+  lock_release_vm ();
   // printf("load segment done\n");
   return true;
 }
@@ -507,24 +509,29 @@ setup_stack (void **esp, const char *file_name)
 {
   uint8_t *kpage;
   bool success = false;
-
+  lock_acquire_vm ();
   kpage = allocate_frame ();
+
   if (kpage != NULL)
     {
+
       success = install_page (((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
+
       if (success)
         {
           // set up the argument in stack
-          // install_page_supplemental (((uint8_t *)PHYS_BASE) - PGSIZE);
           *esp = setup_arguments_in_stack (file_name);
         }
       else
         {
+          // printf("setup_stack\n")
           free_frame (kpage);
         }
     }
+
   // printf("setup_stack kpage %p\n", kpage);
   // printf("setup_stack %p\n", esp);
+  lock_release_vm ();
   return success;
 }
 
@@ -535,7 +542,7 @@ setup_arguments_in_stack (const char *file_name)
 {
 
   // first copy argv to argv_copy
-  char *fn_copy = calloc (1, strlen(file_name) + 1);
+  char *fn_copy = calloc (1, strlen (file_name) + 1);
   char *to_free = fn_copy;
   if (fn_copy == NULL)
     return NULL;

@@ -14,17 +14,21 @@ frame_table_init ()
 void
 lock_acquire_vm ()
 {
+  // printf ("lock_acquire_vm %d\n", thread_current()->tid);
   lock_acquire (&f_lock);
+  // printf ("lock_acquire_vm done %d\n", thread_current()->tid);
 }
 void
 lock_release_vm ()
 {
+  // printf ("lock_release_vm %d\n", thread_current()->tid);
   lock_release (&f_lock);
+  // printf ("lock_release_vm done %d\n", thread_current()->tid);
 }
+
 void *
 allocate_frame ()
 {
-  lock_acquire (&f_lock);
   struct thread *cur = thread_current ();
   void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
   /*If cannot get a page, evict one*/
@@ -32,8 +36,6 @@ allocate_frame ()
     {
 
       kpage = evict_frame ();
-      // kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
-      // printf("need to evict %p\n", kpage);
     }
 
   struct frame_table_entry *frame_table_entry
@@ -43,7 +45,6 @@ allocate_frame ()
   // frame_table_entry->spte = NULL;
   list_push_back (&frame_table, &frame_table_entry->elem);
   // printf("frame %p\n", find_in_frame_table(kpage));
-  lock_release (&f_lock);
 
   return kpage;
 }
@@ -51,7 +52,7 @@ allocate_frame ()
 void
 free_frame (void *kpage)
 {
-  lock_acquire (&f_lock);
+  // printf("free frame\n");
   struct list_elem *e;
 
   for (e = list_begin (&frame_table); e != list_end (&frame_table);
@@ -61,22 +62,18 @@ free_frame (void *kpage)
           = list_entry (e, struct frame_table_entry, elem);
       if (entry->frame == kpage)
         {
-          printf("%d removing kpage %p \n", thread_current()->tid, kpage);
+          printf ("%d removing kpage %p \n", thread_current ()->tid, kpage);
           palloc_free_page (kpage);
           list_remove (e);
           free (entry);
           break;
         }
     }
-
-  lock_release (&f_lock);
 }
 
 struct frame_table_entry *
 find_in_frame_table (void *kpage)
 {
-
-  // lock_acquire (&f_lock);
   struct list_elem *e;
   struct list *l = &frame_table;
 
@@ -86,11 +83,9 @@ find_in_frame_table (void *kpage)
           = list_entry (e, struct frame_table_entry, elem);
       if (f->frame == kpage)
         {
-          // lock_release (&f_lock);
           return f;
         }
     }
-  // lock_release (&f_lock);
   return NULL;
 }
 
@@ -103,7 +98,6 @@ evict_frame (void)
       struct list_elem *e = list_pop_front (&frame_table);
       struct frame_table_entry *fte
           = list_entry (e, struct frame_table_entry, elem);
-      // printf ("aaaa %p %p\n", fte, fte->spte);
 
       /* Skip those not used with spte. */
       if (!fte->spte)
@@ -141,26 +135,15 @@ evict_frame (void)
 bool
 load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
-  bool held = filesys_lock_held_by_current_thread ();
-  if (!held)
-    lock_acquire_filesys ();
-
   file_seek (spte->file, spte->file_offset);
   /* Load this page. */
   if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
     {
-      // printf ("failed\n");
-      if (!held)
-        lock_release_filesys ();
       return false;
     }
-  if (!held)
-    lock_release_filesys ();
 
-  lock_acquire (&f_lock);
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
   memset (kpage + spte->read_bytes, 0, spte->zero_bytes);
-  lock_release (&f_lock);
 
   return true;
 }
@@ -174,36 +157,25 @@ load_page_from_stack (struct sup_page_table_entry *entry UNUSED)
 bool
 load_page_from_swap (struct sup_page_table_entry *spte, void *kpage)
 {
-  lock_acquire (&f_lock);
   read_from_block (kpage, spte->swap_index);
-  lock_release (&f_lock);
   return true;
 }
 
 bool
 load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 {
-  bool held = filesys_lock_held_by_current_thread ();
-  if (!held)
-    lock_acquire_filesys ();
   file_seek (spte->file, spte->file_offset);
 
   // read bytes from the file
   int n_read = file_read (spte->file, kpage, spte->read_bytes);
   if (n_read != (int)spte->read_bytes)
     {
-      if (!held)
-        lock_release_filesys ();
       return false;
     }
-  if (!held)
-    lock_release_filesys ();
-  // the remaining bytea are zero
-  lock_acquire (&f_lock);
+
+  /* The remaining bytes are zeros. */
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
   memset (kpage + n_read, 0, spte->zero_bytes);
-  // lock_release_filesys ();
-  lock_release (&f_lock);
   return true;
 }
 
@@ -214,20 +186,24 @@ load_page (struct sup_page_table_entry *spte)
   spte->pinned = true;
   void *kpage = allocate_frame ();
   bool writable = true;
+
   if (!kpage)
-    return false;
+    {
+      return false;
+    }
   if (spte->source == FILE)
     {
       writable = spte->writable;
     }
+
   if (!install_page (upage, kpage, writable))
     {
       printf ("faild\n");
       free_frame (kpage);
       return false;
     }
+
   bool success = false;
-  // printf("load page %p from %d\n", spte->user_vaddr, spte->source);
   switch (spte->source)
     {
     case FILE:
@@ -242,6 +218,7 @@ load_page (struct sup_page_table_entry *spte)
     default:
       break;
     }
+
   spte->pinned = false;
   return success;
 }
@@ -254,15 +231,15 @@ free_single_page (struct sup_page_table_entry *spte)
   if (spte->source == MMAP && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
     {
-      // printf("test dirty %x \n", spte->fte->frame);
       file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
                      spte->file_offset);
     }
 
   if (spte->fte)
     {
-      // printf("source %d\n", spte->source);
-      free_frame (spte->fte->frame);
+      palloc_free_page (spte->fte->frame);
+      list_remove (&spte->fte->elem);
+      free (spte->fte);
     }
 
   list_remove (&spte->elem);
@@ -273,7 +250,6 @@ free_single_page (struct sup_page_table_entry *spte)
 void
 free_page_table ()
 {
-  lock_acquire_filesys ();
   struct list *l = &thread_current ()->page_table;
   struct list_elem *e;
   for (e = list_begin (l); e != list_end (l);)
@@ -285,23 +261,17 @@ free_page_table ()
       entry->pinned = true;
       free_single_page (entry);
     }
-  lock_release_filesys ();
 }
 
 bool
 install_page (void *upage, void *kpage, bool writable)
 {
-  // lock_acquire (&f_lock);
-  // printf("acq\n");
   struct thread *t = thread_current ();
-  // printf("%p upage\n", upage);
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   if (pagedir_get_page (t->pagedir, upage) != NULL
       || !pagedir_set_page (t->pagedir, upage, kpage, writable))
     {
-      // printf("%d\n", pagedir_get_page (t->pagedir, upage) != NULL);
-      // lock_release (&f_lock);
       printf ("pagedir failed\n");
       return false;
     }
@@ -309,16 +279,11 @@ install_page (void *upage, void *kpage, bool writable)
   struct frame_table_entry *entry = find_in_frame_table (kpage);
   if (entry == NULL)
     {
-      // printf("kpage %p, %d %d\n", kpage, entry == NULL, spte == NULL);
-      // lock_release (&f_lock);
-      printf ("%d some NULL %p\n", thread_current()->tid, kpage);
+      printf ("%d some NULL %p\n", thread_current ()->tid, kpage);
       return false;
     }
   struct sup_page_table_entry *spte = install_page_supplemental (upage);
   entry->spte = spte;
   spte->fte = entry;
-  // printf("release\n");
-  // lock_release (&f_lock);
-  // printf("release\n");
   return true;
 }

@@ -272,7 +272,10 @@ sys_exit (int status)
   /* Free allocated resources. */
   free_file_info ();
   free_child_processes_info ();
+
+  lock_acquire_vm ();
   free_page_table ();
+  lock_release_vm ();
 
   thread_exit ();
 }
@@ -487,6 +490,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
           // printf ("fff virtual_addr %p\n", addr);
           return false;
         }
+      lock_acquire_vm ();
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
         {
           /* If page not found but addr is above esp,
@@ -495,6 +499,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
             {
               // printf("fault above esp\n");
               grow_stack (addr);
+              lock_release_vm ();
               continue;
             }
           else
@@ -507,14 +512,17 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
                   if (entry->source == SWAP || entry->source == MMAP
                       || entry->source == FILE)
                     {
-                      if (load_page (entry)) {
-                        // printf("pinned\n");
-                        // entry->pinned = true;
-                        return true;
-                      }
+                      if (load_page (entry))
+                        {
+                          // printf("pinned\n");
+                          // entry->pinned = true;
+                          lock_release_vm ();
+                          return true;
+                        }
                       else
                         {
                           // printf("-1\n");
+                          lock_release_vm ();
                           return false;
                         }
                     }
@@ -522,10 +530,12 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
               else
                 {
                   // printf("-1\n");
+                  lock_release_vm ();
                   return false;
                 }
             }
         }
+      lock_release_vm ();
     }
   // printf ("passes\n");
   return true;
@@ -566,7 +576,7 @@ sys_mmap (int fd, void *addr)
         }
       curr_addr += PGSIZE;
     }
-
+  lock_acquire_vm ();
   /* map the file into pages */
   for (off_t offset = 0; offset < file_size; offset += PGSIZE)
     {
@@ -586,7 +596,7 @@ sys_mmap (int fd, void *addr)
       spte->source = MMAP;
       spte->read_only = false;
     }
-
+  lock_release_vm ();
   /* assign a unique mapid to the mapped file */
   mapid_t mapid = 1;
   if (!list_empty (&thread_current ()->mmapped_file_list))
@@ -603,7 +613,6 @@ sys_mmap (int fd, void *addr)
   mmap_entry->file = file;
   mmap_entry->user_vaddr = addr;
   list_push_back (&thread_current ()->mmapped_file_list, &mmap_entry->elem);
-
   /* assign a mapping id */
   lock_release_filesys ();
   return mapid;
@@ -702,50 +711,15 @@ free_child_processes_info ()
     }
 }
 
-// static void
-// free_page_table ()
-// {
-//   struct list *l = &thread_current ()->page_table;
-//   struct list_elem *e;
-//   for (e = list_begin (l); e != list_end (l);)
-//     {
-//       struct sup_page_table_entry *entry
-//           = list_entry (e, struct sup_page_table_entry, elem);
-//       struct list_elem *next = list_next (e);
-//       list_remove (e);
-//       list_remove(&entry->fte->elem);
-//       free (entry);
-//       e = next;
-//     }
-// }
-
 bool
 grow_stack (const void *fault_addr)
 {
   void *kpage = allocate_frame ();
-  // printf("after grow_stack\n");
   if (kpage != NULL)
     {
       void *upage = pg_round_down (fault_addr);
       bool writable = true;
-      // bool success = pagedir_set_page (thread_current ()->pagedir, upage,
-      //                                  kpage, writable);
-      // if (success)
-      //   {
-      //     /* Create entry in supplemental page table. */
-      //    //  printf ("install success %p\n", upage);
-      //     struct frame_table_entry *entry = find_in_frame_table(kpage);
-      // struct sup_page_table_entry *spte = install_page_supplemental (upage);
-      // entry->spte = spte;
 
-      //     return true;
-      //   }
-      // else
-      //   {
-      //    //  printf ("install failed\n");
-      //     free_frame (kpage);
-      //     return false;
-      //   }
       if (!install_page (upage, kpage, writable))
         {
           free_frame (kpage);
@@ -758,7 +732,6 @@ grow_stack (const void *fault_addr)
     }
   else
     {
-      // printf ("allocate failed\n");
       free_frame (kpage);
       return false;
     }

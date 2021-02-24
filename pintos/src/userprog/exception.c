@@ -152,12 +152,8 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  // if (!user)
-  //   {
-  //     printf("not usewr\n");
-  //   }
-
   void *upage = pg_round_down (fault_addr);
+  lock_acquire_vm ();
   struct sup_page_table_entry *entry = find_in_table (upage);
   if (entry != NULL)
     {
@@ -169,14 +165,19 @@ page_fault (struct intr_frame *f)
           || entry->source == FILE)
         {
           if (load_page (entry))
-            return;
+            {
+              lock_release_vm ();
+              return;
+            }
           else
             {
               // printf ("asdsa\n");
+              lock_release_vm ();
               sys_exit (-1);
             }
         }
     }
+  lock_release_vm ();
   if (user)
     {
       /* Validate the address. */
@@ -184,23 +185,20 @@ page_fault (struct intr_frame *f)
           || fault_addr < (void *)0x08048000 || fault_addr < f->esp - 32)
         {
           /* Exit user thread if truly invalid. */
-          //  printf ("invalid memory\n");
-          // printf ("asdsa %p\n", fault_addr);
-          // printf ("f->esp: %p , fault: %p\n", f->esp, fault_addr);
           sys_exit (-1);
         }
       else
         {
-          //  bool success = false;
-
           /* If valid, install the frame. */
-          //  printf ("valid address, need to install new frame\n");
+          lock_acquire_vm ();
           if (grow_stack (fault_addr))
             {
+              lock_release_vm ();
               return;
             }
           else
             {
+              lock_release_vm ();
               sys_exit (-1);
             }
         }

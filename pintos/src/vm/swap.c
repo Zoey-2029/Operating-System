@@ -25,8 +25,6 @@ size_t
 write_to_block (uint8_t *frame)
 {
     
-//   lock_acquire (&swap_lock);
-//    printf("aaaa\n");
   size_t bit = bitmap_scan_and_flip (swap_table, 0, 1, false);
  
   if (bit == BITMAP_ERROR)
