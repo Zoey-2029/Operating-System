@@ -191,8 +191,7 @@ page_fault (struct intr_frame *f)
 bool 
 check_addr_validity (void *user_vaddr, bool user, void *esp)
 {
-  if (user && (user_vaddr == NULL || user_vaddr >= PHYS_BASE
-      || user_vaddr < (void *)0x08048000 || user_vaddr < esp - 32))
+  if (user && ( !is_user_vaddr (user_vaddr) || user_vaddr < esp - 32))
       return false;
     
   lock_acquire_vm ();

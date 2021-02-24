@@ -55,7 +55,6 @@ free_frame (void *kpage)
           = list_entry (e, struct frame_table_entry, elem);
       if (entry->frame == kpage)
         {
-          printf ("%d removing kpage %p \n", thread_current ()->tid, kpage);
           palloc_free_page (kpage);
           list_remove (e);
           free (entry);
@@ -85,7 +84,7 @@ find_in_frame_table (void *kpage)
 void *
 evict_frame (void)
 {
-  struct thread *curr = thread_current ();
+  //struct thread *curr = thread_current ();
   while (!list_empty (&frame_table))
     {
       struct list_elem *e = list_pop_front (&frame_table);
@@ -124,7 +123,6 @@ bool
 load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
   file_seek (spte->file, spte->file_offset);
-  /* Load this page. */
   if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
       return false;
 
@@ -146,7 +144,6 @@ load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 {
   file_seek (spte->file, spte->file_offset);
 
-  // read bytes from the file
   int n_read = file_read (spte->file, kpage, spte->read_bytes);
   if (n_read != (int)spte->read_bytes)
       return false;
@@ -163,11 +160,10 @@ load_page (struct sup_page_table_entry *spte)
   void *upage = spte->user_vaddr;
   spte->pinned = true;
   void *kpage = allocate_frame ();
-  bool writable = true;
-
   if (!kpage)
       return false;
 
+  bool writable = true;
   if (spte->source == FILE)
       writable = spte->writable;
 
@@ -175,8 +171,7 @@ load_page (struct sup_page_table_entry *spte)
     {
       free_frame (kpage);
       return false;
-    }
-      
+    }    
 
   bool success = false;
   switch (spte->source)
@@ -193,19 +188,18 @@ load_page (struct sup_page_table_entry *spte)
     default:
       break;
     }
-  
+
   if (!success)
     free_frame (kpage);
 
   spte->pinned = false;
-  
   return success;
 }
 
 void
 free_single_page (struct sup_page_table_entry *spte)
 {
-  /* write file back to disk when the bits are dirty */
+  /* write file back to disk only when the bits are dirty */
   if (spte->source == MMAP && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
       file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
@@ -239,12 +233,22 @@ free_page_table ()
     }
 }
 
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with allocate_frame ();
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+
 bool
 install_page (void *upage, void *kpage, bool writable)
 {
-  struct thread *t = thread_current ();
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
+  struct thread *t = thread_current ();
   if (pagedir_get_page (t->pagedir, upage) != NULL
       || !pagedir_set_page (t->pagedir, upage, kpage, writable))
     return false;

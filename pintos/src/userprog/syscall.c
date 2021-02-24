@@ -479,12 +479,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
   for (unsigned i = 0; i < size; i++)
     {
       const void *addr = virtual_addr + i;
-      /* Invalid user virtual pointer:
-       NULL pointer,
-       a pointer below the code segment
-       a pointer to kernel virtual address space,
-       a pointer to unmapped virtual memory.  */
-      if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr))
+      if (!is_user_vaddr (addr))
           return false;
 
       lock_acquire_vm ();
@@ -557,23 +552,22 @@ sys_mmap (int fd, void *addr)
       lock_release_filesys ();
       return -1;
     }
+  lock_release_filesys ();
 
   /* validate space in [addr, addr + file_size] is unmapped */
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
       if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr))
-        {
-          lock_release_filesys ();
           return -1;
-        }
       curr_addr += PGSIZE;
     }
+
+  
   lock_acquire_vm ();
   /* map the file into pages */
   for (off_t offset = 0; offset < file_size; offset += PGSIZE)
     {
-
       curr_addr = addr + offset;
       uint32_t page_read_bytes
           = offset + PGSIZE < file_size ? PGSIZE : file_size - offset;
@@ -587,18 +581,16 @@ sys_mmap (int fd, void *addr)
       spte->read_bytes = page_read_bytes;
       spte->zero_bytes = page_zero_bytes;
       spte->source = MMAP;
-      spte->read_only = false;
+      spte->writable = true;
     }
   lock_release_vm ();
   /* assign a unique mapid to the mapped file */
   mapid_t mapid = 1;
   if (!list_empty (&thread_current ()->mmapped_file_list))
     mapid = list_entry (list_back (&thread_current ()->mmapped_file_list),
-                        struct mmapped_file_entry, elem)
-                ->mapid
-            + 1;
+                        struct mmapped_file_entry, elem) ->mapid + 1;
 
-  /* keep track of the mma ped file */
+  /* keep track of the mmaped file */
   struct mmapped_file_entry *mmap_entry
       = malloc (sizeof (struct mmapped_file_entry));
   mmap_entry->mapid = mapid;
@@ -606,8 +598,6 @@ sys_mmap (int fd, void *addr)
   mmap_entry->file = file;
   mmap_entry->user_vaddr = addr;
   list_push_back (&thread_current ()->mmapped_file_list, &mmap_entry->elem);
-  /* assign a mapping id */
-  lock_release_filesys ();
   return mapid;
 }
 

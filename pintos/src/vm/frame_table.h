@@ -21,11 +21,8 @@ void frame_table_init (void);
 struct frame_table_entry *find_in_frame_table (void *kpage);
 void *allocate_frame (void);
 void free_frame (void *);
-
 void *evict_frame (void);
 
-/* load page on page fault when the fault address is actually valid, 
-from swap or mmap or excutable file */
 bool load_page_from_file (struct sup_page_table_entry *spte, void *kpage);
 bool load_page_from_swap (struct sup_page_table_entry *spte, void *kpage);
 bool load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage);
