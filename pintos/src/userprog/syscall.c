@@ -264,7 +264,7 @@ sys_exit (int status)
 {
   struct thread_info *info = get_child_process (
       thread_current ()->tid, &thread_current ()->parent->child_processes);
-
+  // printf("%d\n", thread_current ()->tid);
   printf ("%s: exit(%d)\n", thread_current ()->name, status);
   if (info)
     info->exit_status = status;
