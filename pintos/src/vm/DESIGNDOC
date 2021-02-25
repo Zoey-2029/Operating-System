@@ -97,6 +97,7 @@ page
 table entry will be created and inserted to the supplamentarypage table.
 Thus, for future access, we just need to search the user page in the table
 
+
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
@@ -106,10 +107,28 @@ Thus, for future access, we just need to search the user page in the table
 >> A4: When two user processes both need a new frame at the same time,
 >> how are races avoided?
 
+We have declared a lock named "f_lock" in the "frame_table.c", as well as 
+2 functions to acquire and release this lock. So whenever a thread requires
+frame allocation, it'll try to acquire the lock. If the lock is free, then
+the frame allocation can be performed. Otherwise, this thread has to wait
+for other thread releasing the lock.
+
+
 ---- RATIONALE ----
 
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
+
+We used list to implement the supplamentary page map because it's
+easy to use. As for hash table, we have to define has function as 
+well as comparison function to use it. And for hash insert, it'll 
+order the new element which takes O(logn) time, but for list, it 
+can perform in O(1) time
+
+Also the default bucket size is pretty small (which is 4). But the
+supplamentary page table may be big as the amount of pages is large.
+in this case the hash table may have similar performance as list
+
 
 		       PAGING TO AND FROM DISK
 		       =======================
