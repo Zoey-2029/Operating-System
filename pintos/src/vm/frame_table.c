@@ -2,6 +2,7 @@
 #include "vm/swap.h"
 /* A list of frame_table_entry as the frame table. */
 static struct list frame_table;
+/* only one thread is allowed to interact with frame table */
 static struct lock f_lock;
 
 void
@@ -23,17 +24,27 @@ lock_release_vm ()
   lock_release (&f_lock);
 }
 
+/* allocate a frame in frame table, no internal sunchronization
+needed since we external synchronization is implemented */
 void *
 allocate_frame ()
 {
   struct thread *cur = thread_current ();
   void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
-  /*If cannot get a page, evict one*/
+
+  /*evict one frame when the frame is full*/
   if (kpage == NULL)
     kpage = evict_frame ();
+  
+  /* panic the kernel if no frame can be evicted */
+  if (kpage == NULL)
+    PANIC("Swap is full, failed to allocate a frame \n");
 
   struct frame_table_entry *frame_table_entry
       = calloc (1, sizeof *frame_table_entry);
+  if (!frame_table_entry)
+    return NULL;
+  
   frame_table_entry->owner = cur;
   frame_table_entry->frame = kpage;
   frame_table_entry->spte = NULL;
@@ -42,6 +53,7 @@ allocate_frame ()
   return kpage;
 }
 
+/* free a frame from frame table */
 void
 free_frame (void *kpage)
 {
@@ -117,11 +129,14 @@ evict_frame (void)
   return NULL;
 }
 
+
+/* load page from excutable file */
 bool
 load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
   file_seek (spte->file, spte->file_offset);
-  if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
+  if (file_read (spte->file, kpage, spte->read_bytes) != 
+      (int)spte->read_bytes)
     return false;
 
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
@@ -130,6 +145,7 @@ load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
   return true;
 }
 
+/* load page from swap */
 bool
 load_page_from_swap (struct sup_page_table_entry *spte, void *kpage)
 {
@@ -137,6 +153,7 @@ load_page_from_swap (struct sup_page_table_entry *spte, void *kpage)
   return true;
 }
 
+/* load page from file to be mapped into memory*/
 bool
 load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 {
@@ -152,6 +169,7 @@ load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
   return true;
 }
 
+/* load pages from swap, excutable file or file to be mapped*/
 bool
 load_page (struct sup_page_table_entry *spte)
 {
@@ -202,6 +220,7 @@ free_single_page (struct hash_elem *e, void *aux UNUSED)
 {
   struct sup_page_table_entry *spte
       = hash_entry (e, struct sup_page_table_entry, elem);
+
   /* write file back to disk only when the bits are dirty */
   if (spte->source == MMAP && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))

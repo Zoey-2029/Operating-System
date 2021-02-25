@@ -15,21 +15,22 @@ enum page_status
 
 struct sup_page_table_entry
 {
-  void *user_vaddr;
-  enum page_status source;
-  bool writable;
-  struct frame_table_entry *fte;
-  struct hash_elem elem;
+  void *user_vaddr;               /* user virtual address*/
+  enum page_status source;        /* source of page*/
+  bool writable;                
+  struct frame_table_entry *fte;  /* corresponding frame */
+  struct hash_elem elem;          /* hash element for page_table*/
 
   /* locate swap */
-  bool pinned;
+  bool pinned;                   
   size_t swap_index;
 
   /* locate mmap file */
-  struct file *file;
-  int file_offset;
-  uint32_t read_bytes;
-  uint32_t zero_bytes;
+  struct file *file;              /* a file to be mapped */
+  int file_offset;                /* offset in the file*/
+  uint32_t read_bytes;            /* bytes in the page mapped 
+                                     by the file */
+  uint32_t zero_bytes;            /* bytes to align page size*/
 };
 
 struct sup_page_table_entry *install_page_supplemental (void *);

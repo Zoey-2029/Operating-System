@@ -3,8 +3,7 @@
 #include "userprog/syscall.h"
 #include <bitmap.h>
 
-// /* Make the swap block global. */
-// static struct block *global_swap_block;
+/* Make the swap block global. */
 static struct block *global_swap_block;
 static struct bitmap *swap_table;
 static struct lock swap_lock;
@@ -23,8 +22,9 @@ swap_init ()
 size_t
 write_to_block (uint8_t *frame)
 {
+  lock_acquire (&swap_lock);
   size_t bit = bitmap_scan_and_flip (swap_table, 0, 1, false);
- 
+  lock_release (&swap_lock);
   if (bit == BITMAP_ERROR)
       sys_exit (-1);
 
@@ -42,6 +42,8 @@ read_from_block (uint8_t *frame, int index)
   for (int i = 0; i < PAGE_BLOCKS; i++)
       block_read (global_swap_block, index + i,
                   frame + (i * BLOCK_SECTOR_SIZE));
-                  
+
+  lock_acquire (&swap_lock);
   bitmap_flip (swap_table, index / PAGE_BLOCKS);
+  lock_release (&swap_lock);
 }

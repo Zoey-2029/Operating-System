@@ -108,7 +108,7 @@ struct thread
                                   and child process. */
   struct file *exec_file;      /* Executable file. */
   int fd_count;
-  struct list mmapped_file_list; /* list of memory mapped file */
+  struct list mmapped_file_list; /* list of memory mapped files */
 #endif
 
   /* Owned by thread.c. */
@@ -127,13 +127,14 @@ struct thread_info
   struct list_elem elem;      /* List element for child_processes */
 };
 
+/* memory of files mapped into user virtual memory*/ 
 struct mmapped_file_entry
 {
-  int mapid;
-  void *user_vaddr;
-  struct file *file;
-  struct list_elem elem;
-  size_t file_size;
+  int mapid;              /* Unique id for a mapped file in vm */
+  void *user_vaddr;       /* Start address for the mapped memory */
+  struct file *file;      /* File in disk */
+  struct list_elem elem;  /* List element for  mmapped_file_list */
+  size_t file_size;       /* size of file mapped into vm */
 };
 
 /* If false (default), use round-robin scheduler.

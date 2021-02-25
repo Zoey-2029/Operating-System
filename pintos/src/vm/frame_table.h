@@ -11,10 +11,10 @@
 
 struct frame_table_entry
 {
-  void *frame;
-  struct thread *owner;
-  struct sup_page_table_entry *spte;
-  struct list_elem elem;
+  void *frame;                        /* kernel address */
+  struct thread *owner;               /* owner thread of frame*/
+  struct sup_page_table_entry *spte;  /* corresponding page */
+  struct list_elem elem;              /* list element for frame table */ 
 };
 
 void frame_table_init (void);

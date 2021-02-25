@@ -394,6 +394,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Set up stack. */
   if (!setup_stack (esp, file_name))
     goto done;
+    
   /* Start address. */
   *eip = (void (*) (void))ehdr.e_entry;
 
@@ -472,9 +473,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
 
-  // file_seek (file, ofs);
-  // printf("aaaa\n");
   lock_acquire_vm ();
+  file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0)
     {
       /* Calculate how to fill this page.
@@ -490,11 +490,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       spte->read_bytes = page_read_bytes;
       spte->zero_bytes = page_zero_bytes;
       spte->source = FILE;
-      ofs += page_read_bytes;
+      
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
+      ofs += page_read_bytes;
       upage += PGSIZE;
     }
   lock_release_vm ();

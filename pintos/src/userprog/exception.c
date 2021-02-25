@@ -154,6 +154,9 @@ page_fault (struct intr_frame *f)
   void *upage = pg_round_down (fault_addr);
 
   lock_acquire_vm ();
+  /* First check if we have this page stored in page table
+  if so, load it from file to be mmaped, excutable file or swap 
+  exit if loading fails */
   struct sup_page_table_entry *entry = find_in_table (upage);
   if (entry != NULL)
     {
@@ -170,14 +173,16 @@ page_fault (struct intr_frame *f)
     }
   lock_release_vm ();
 
+  /* if if the address is valid, if valid, grow the stack
+  exit the thread in other cases */
   if (check_addr_validity_then_grow_stack (fault_addr, user, f->esp))
     return;
   else 
     sys_exit(-1);
 
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+  /* this code shouldn't be reached, but leave the code here for the case
+  of debugging */
+  NOT_REACHED:
   printf ("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading", user ? "user" : "kernel");

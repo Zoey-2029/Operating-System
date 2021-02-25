@@ -545,16 +545,14 @@ sys_mmap (int fd, void *addr)
       curr_addr += PGSIZE;
     }
 
-  
+  /* lazily map the file into pages, no framed allocated */
   lock_acquire_vm ();
-  /* map the file into pages */
   for (off_t offset = 0; offset < file_size; offset += PGSIZE)
     {
       curr_addr = addr + offset;
       uint32_t page_read_bytes
           = offset + PGSIZE < file_size ? PGSIZE : file_size - offset;
       uint32_t page_zero_bytes = PGSIZE - page_read_bytes;
-
       struct sup_page_table_entry *spte
           = install_page_supplemental (curr_addr);
 
@@ -566,6 +564,7 @@ sys_mmap (int fd, void *addr)
       spte->writable = true;
     }
   lock_release_vm ();
+
   /* assign a unique mapid to the mapped file */
   mapid_t mapid = 1;
   if (!list_empty (&thread_current ()->mmapped_file_list))
@@ -594,6 +593,7 @@ sys_munmap (mapid_t mapid)
   void *upage = mp->user_vaddr;
   size_t file_size = mp->file_size;
 
+  /* unmap user pages for the file */
   while (upage < mp->user_vaddr + file_size)
     {
       struct sup_page_table_entry *spte = find_in_table (upage);
