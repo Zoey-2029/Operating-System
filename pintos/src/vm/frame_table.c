@@ -17,7 +17,6 @@ lock_acquire_vm ()
   lock_acquire (&f_lock);
 }
 
-
 void
 lock_release_vm ()
 {
@@ -31,7 +30,7 @@ allocate_frame ()
   void *kpage = (void *)palloc_get_page (PAL_USER | PAL_ZERO);
   /*If cannot get a page, evict one*/
   if (kpage == NULL)
-      kpage = evict_frame ();
+    kpage = evict_frame ();
 
   struct frame_table_entry *frame_table_entry
       = calloc (1, sizeof *frame_table_entry);
@@ -84,7 +83,7 @@ find_in_frame_table (void *kpage)
 void *
 evict_frame (void)
 {
-  //struct thread *curr = thread_current ();
+  struct thread *curr = thread_current ();
   while (!list_empty (&frame_table))
     {
       struct list_elem *e = list_pop_front (&frame_table);
@@ -96,13 +95,12 @@ evict_frame (void)
         {
           list_push_back (&frame_table, &fte->elem);
         }
-      // else if (fte->spte->pinned
-      //          || pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
-      //   {
-      //      printf ("bbbb\n");
-      //     pagedir_set_accessed (curr->pagedir, fte->spte->user_vaddr, false);
-      //     list_push_back (&frame_table, &fte->elem);
-      //   }
+      else if (fte->spte->pinned
+               || pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
+        {
+          pagedir_set_accessed (curr->pagedir, fte->spte->user_vaddr, false);
+          list_push_back (&frame_table, &fte->elem);
+        }
       else
         {
           pagedir_clear_page (fte->owner->pagedir, fte->spte->user_vaddr);
@@ -124,7 +122,7 @@ load_page_from_file (struct sup_page_table_entry *spte, void *kpage)
 {
   file_seek (spte->file, spte->file_offset);
   if (file_read (spte->file, kpage, spte->read_bytes) != (int)spte->read_bytes)
-      return false;
+    return false;
 
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
   memset (kpage + spte->read_bytes, 0, spte->zero_bytes);
@@ -146,7 +144,7 @@ load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
 
   int n_read = file_read (spte->file, kpage, spte->read_bytes);
   if (n_read != (int)spte->read_bytes)
-      return false;
+    return false;
 
   /* The remaining bytes are zeros. */
   ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
@@ -159,22 +157,22 @@ load_page (struct sup_page_table_entry *spte)
 {
   if (!spte)
     return false;
-    
+
   void *upage = spte->user_vaddr;
   spte->pinned = true;
   void *kpage = allocate_frame ();
   if (!kpage)
-      return false;
+    return false;
 
   bool writable = true;
   if (spte->source == FILE)
-      writable = spte->writable;
+    writable = spte->writable;
 
   if (!install_page (upage, kpage, writable))
     {
       free_frame (kpage);
       return false;
-    }    
+    }
 
   bool success = false;
   switch (spte->source)
@@ -200,13 +198,15 @@ load_page (struct sup_page_table_entry *spte)
 }
 
 void
-free_single_page (struct sup_page_table_entry *spte)
+free_single_page (struct hash_elem *e, void *aux UNUSED)
 {
+  struct sup_page_table_entry *spte
+      = hash_entry (e, struct sup_page_table_entry, elem);
   /* write file back to disk only when the bits are dirty */
   if (spte->source == MMAP && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
-      file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
-                     spte->file_offset);
+    file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
+                   spte->file_offset);
 
   if (spte->fte)
     {
@@ -215,7 +215,7 @@ free_single_page (struct sup_page_table_entry *spte)
       free (spte->fte);
     }
 
-  list_remove (&spte->elem);
+  hash_delete (&thread_current ()->page_table, &spte->elem);
   pagedir_clear_page (thread_current ()->pagedir, spte->user_vaddr);
   free (spte);
 }
@@ -223,17 +223,7 @@ free_single_page (struct sup_page_table_entry *spte)
 void
 free_page_table ()
 {
-  struct list *l = &thread_current ()->page_table;
-  struct list_elem *e;
-  for (e = list_begin (l); e != list_end (l);)
-    {
-      struct sup_page_table_entry *entry
-          = list_entry (e, struct sup_page_table_entry, elem);
-      struct list_elem *next = list_next (e);
-      e = next;
-      entry->pinned = true;
-      free_single_page (entry);
-    }
+  hash_destroy (&thread_current ()->page_table, free_single_page);
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
@@ -258,7 +248,7 @@ install_page (void *upage, void *kpage, bool writable)
 
   struct frame_table_entry *entry = find_in_frame_table (kpage);
   if (entry == NULL)
-      return false;
+    return false;
 
   struct sup_page_table_entry *spte = install_page_supplemental (upage);
   entry->spte = spte;
