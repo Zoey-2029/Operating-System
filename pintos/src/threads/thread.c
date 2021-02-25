@@ -199,6 +199,7 @@ thread_create (const char *name, int priority, thread_func *function,
   sema_init (&info->sema_wait, 0);
   list_push_back (&thread_current ()->child_processes, &info->elem);
 #endif
+  hash_init (&t->page_table, page_hash_func, page_less_func, NULL);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -480,7 +481,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  list_init (&t->page_table);
 
 #ifdef USERPROG
   /* Data structures related to user program. */

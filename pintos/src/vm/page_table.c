@@ -9,26 +9,51 @@ install_page_supplemental (void *upage)
       page_table_entry = calloc (1, sizeof *page_table_entry);
       page_table_entry->user_vaddr = upage;
       page_table_entry->source = DEFAULT;
-      list_push_back (&thread_current ()->page_table, 
-                      &page_table_entry->elem);
+      hash_insert (&thread_current ()->page_table, &page_table_entry->elem);
       return page_table_entry;
     }
   else
-      return page_table_entry;
+    return page_table_entry;
 }
 
 struct sup_page_table_entry *
 find_in_table (void *upage)
 {
-  struct list_elem *e;
-  struct list *l = &thread_current ()->page_table;
+  // struct hash_elem *e;
 
-  for (e = list_begin (l); e != list_end (l); e = list_next (e))
-    {
-      struct sup_page_table_entry *f
-          = list_entry (e, struct sup_page_table_entry, elem);
-      if (f->user_vaddr == upage)
-          return f;
-    }
-  return NULL;
+  // for (e = list_begin (l); e != list_end (l); e = list_next (e))
+  //   {
+
+  //     if (f->user_vaddr == upage)
+  //       return f;
+  //   }
+  struct sup_page_table_entry *tmp = calloc (1, sizeof *tmp);
+  tmp->user_vaddr = upage;
+  struct hash_elem *e = hash_find (&thread_current ()->page_table, &tmp->elem);
+  free (tmp);
+  if (e == NULL)
+    return NULL;
+  struct sup_page_table_entry *f
+      = hash_entry (e, struct sup_page_table_entry, elem);
+  return f;
+}
+
+unsigned
+page_hash_func (const struct hash_elem *e, void *aux UNUSED)
+{
+  struct sup_page_table_entry *f
+      = hash_entry (e, struct sup_page_table_entry, elem);
+  return (unsigned)f->user_vaddr;
+}
+
+bool
+page_less_func (const struct hash_elem *a, const struct hash_elem *b,
+                void *aux UNUSED)
+{
+  struct sup_page_table_entry *f1
+      = hash_entry (a, struct sup_page_table_entry, elem);
+  struct sup_page_table_entry *f2
+      = hash_entry (b, struct sup_page_table_entry, elem);
+
+  return f1->user_vaddr < f2->user_vaddr;
 }

@@ -597,7 +597,7 @@ sys_munmap (mapid_t mapid)
   while (upage < mp->user_vaddr + file_size)
     {
       struct sup_page_table_entry *spte = find_in_table (upage);
-      free_single_page (spte);
+      free_single_page (&spte->elem, NULL);
       upage += PGSIZE;
     }
 

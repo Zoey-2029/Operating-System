@@ -28,7 +28,7 @@ bool load_page_from_swap (struct sup_page_table_entry *spte, void *kpage);
 bool load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage);
 bool load_page (struct sup_page_table_entry *spte);
 
-void free_single_page (struct sup_page_table_entry *spte);
+void free_single_page (struct hash_elem *e, void *aux);
 void free_page_table (void);
 
 bool install_page (void *upage, void *kpage, bool writable);
