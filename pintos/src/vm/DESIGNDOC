@@ -197,12 +197,12 @@ in this case the hash table may have similar performance as list
 
 struct thread
 {
-  struct list mmapped_file_list;   /* list of memory mapped files */
+  struct list mmapped_file_list;  /* list of memory mapped files */
 }
 
 struct mmapped_file_entry
 {
-  int mapid;               /* Unique id for a mapped file in vm */
+  int mapid;              /* Unique id for a mapped file in vm */
   void *user_vaddr;       /* Start address for the mapped memory */
   struct file *file;      /* File in disk */
   struct list_elem elem;  /* List element for  mmapped_file_list */
@@ -211,14 +211,11 @@ struct mmapped_file_entry
 
 struct sup_page_table_entry
 {
-  /* members to locate mmap file */
-  struct file *file;              /* a file to be mapped */
-  int file_offset;                /* offset in the file */
-  uint32_t read_bytes;            /* bytes in the page mapped 
-                                     by the file */
-  uint32_t zero_bytes;            /* bytes to align page size*/
+  struct file *file;      /* a file to be mapped */
+  int file_offset;        /* offset in the file */
+  uint32_t read_bytes;    /* bytes in the page mapped by the file */
+  uint32_t zero_bytes;    /* bytes to align page size*/
 }
-
 
 ---- ALGORITHMS ----
 
@@ -226,14 +223,36 @@ struct sup_page_table_entry
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+Each process would keep a list of files mapped into virtual memory. 
+The list is initialized when starting a new process, and only when 
+mmap is called and succeeds, a new list element would be added to 
+the mapped file list. And the page is allocated lazily in mmap, 
+that is, we record the virtual address in supplementary page table 
+but don't assign a frame to it. When the user tries to access that 
+address space, it would cause page fault, at that time we assign a
+frame to the page and map the fileinto virtual memory. And when 
+ummap is called, or when the process exits, we first check if the 
+pages mapped from file are dirty and write the page bits back to 
+file. Then we go ahead, delete the file from mapped file list and 
+free  that page.  
+
+When page fault happend, we first check if have that fault address 
+stored in the supplementary page table, if so, we load pages from swap, 
+excutable file or memory mapped file. And the major difference between
+swap pages and mapped files is that they load pages from swap or file
+system respectively. Similarly, during eviction process, they write 
+to global swap and filesys respectively. 
+
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
 
 After checking the file to be mapped is valid, we get its size 
-file_size. And we make sure the virtual address space 
-[addr,addr+file_size] is valid stack adressa and is not already 
-in page table. Then we can go head and lazily allocate pages for 
-the mapped file. 
+file_size. Given the user virtual address uvaddr, we first need 
+to make sure the virtual address space [addr,addr + file_size] is
+valid stack address, and they are not occupied by other pages in
+original Pintos page table or supplamentary page table.Only when
+the memory is valid stack address and unoccupied, we lazily 
+allocate pages for the mapped file. 
 
 ---- RATIONALE ----
 
@@ -243,6 +262,18 @@ the mapped file.
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+
+In struct sup_page_table_entry, we use members "sourece" and "writable"
+to keep track of the status of page, indicating whether it comes 
+from an excutable file, mapped file or swap. When we allocate pages 
+lazily, the page source is DEAFULT, and we modify it to MMAP in mmap 
+systemcall, to FILE if the page is an exctable file to be loaded, and
+to SWAP when we evict the page to swap. The major difference is 
+when we load pages, we call load_page_from_file() for loading 
+excutable file and load_page_from_mmap() for mapped files. By keeping 
+track of these information, we can share much of the code, and it 
+makes our code clearer.
+
 
 			   SURVEY QUESTIONS
 			   ================

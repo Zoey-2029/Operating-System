@@ -541,7 +541,9 @@ sys_mmap (int fd, void *addr)
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
-      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr))
+      if (!is_user_vaddr (curr_addr) || 
+          find_in_table (curr_addr) || 
+          pagedir_get_page (thread_current ()->pagedir, curr_addr))
           return -1;
       curr_addr += PGSIZE;
     }
