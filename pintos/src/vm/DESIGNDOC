@@ -30,6 +30,12 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+
+struct thread
+{
+  struct hash page_table;      ==> Supplementary page table
+}
+
 enum page_status
 {
   DEFAULT,
@@ -38,6 +44,7 @@ enum page_status
   SWAP, 
   MMAP
 };
+
 The enumeration above is used to indicate the source where to 
 load the page from
 
@@ -60,22 +67,10 @@ struct sup_page_table_entry
   uint32_t read_bytes;	         	==> Number of bytes to 
                                       read from file to frame
   uint32_t zero_bytes;		        ==> bytes to align page size
-  
 };
 
 The struct above is the supplamentary page table implementation. 
 Please findthe details of member above
-
-struct frame_table_entry
-{
-  void *frame;							          ==> the frame itself
-  struct thread *owner;					      ==> the thread owns this frame
-  struct sup_page_table_entry *spte;	==> store the sup page table info
-  struct list_elem elem;				      ==> list element of frame table 
-};
-
-The struct above is the impelementation of frame table. The details of 
-each member are above as well
 
 
 ---- ALGORITHMS ----
@@ -141,18 +136,51 @@ in this case the hash table may have similar performance as list
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+/* A list of frame_table_entry as the frame table. */
+static struct list frame_table;
+
+/* only one thread is allowed to interact with frame table */
+static struct lock f_lock;
+
+struct frame_table_entry
+{
+  void *frame;							          ==> the frame itself
+  struct thread *owner;					      ==> the thread owns this frame
+  struct sup_page_table_entry *spte;	==> store the sup page table info
+  struct list_elem elem;				      ==> list element of frame table 
+};
+
+The struct above is the impelementation of frame table. The details of 
+each member are above as well
+
 ---- ALGORITHMS ----
 
 >> B2: When a frame is required but none is free, some frame must be
 >> evicted.  Describe your code for choosing a frame to evict.
 
+To evict frames, we implement the clock algorithm which supports 
+second chance. We would traverse the whole frame list in the oreder 
+FIFO. That is we always check the first frame in the list,  
+....
+
+
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
 
+
+
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
+
+When page fault happens, we first check if the address has been 
+recorded in the supplementary page table, if so, we load pages from
+swap or filesystem. If not, we need to check if the address is truely 
+valid. THat means, if the person who tries to access the address is
+the user, the address must be a valid stack address, which must be 
+non-NULL, above 0x08048000, below PHYS_BASE, and above esp - 32. 
+After passing the validity check, we are allowed to grow the stack.
 
 ---- SYNCHRONIZATION ----
 
