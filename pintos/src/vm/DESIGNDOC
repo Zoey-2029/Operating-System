@@ -195,6 +195,30 @@ in this case the hash table may have similar performance as list
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread
+{
+  struct list mmapped_file_list;   /* list of memory mapped files */
+}
+
+struct mmapped_file_entry
+{
+  int mapid;               /* Unique id for a mapped file in vm */
+  void *user_vaddr;       /* Start address for the mapped memory */
+  struct file *file;      /* File in disk */
+  struct list_elem elem;  /* List element for  mmapped_file_list */
+  size_t file_size;       /* size of file mapped into vm */
+};
+
+struct sup_page_table_entry
+{
+  /* members to locate mmap file */
+  struct file *file;              /* a file to be mapped */
+  int file_offset;                /* offset in the file */
+  uint32_t read_bytes;            /* bytes in the page mapped 
+                                     by the file */
+  uint32_t zero_bytes;            /* bytes to align page size*/
+}
+
 
 ---- ALGORITHMS ----
 
@@ -204,6 +228,12 @@ in this case the hash table may have similar performance as list
 
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+
+After checking the file to be mapped is valid, we get its size 
+file_size. And we make sure the virtual address space 
+[addr,addr+file_size] is valid stack adressa and is not already 
+in page table. Then we can go head and lazily allocate pages for 
+the mapped file. 
 
 ---- RATIONALE ----
 

@@ -519,6 +519,7 @@ sys_mmap (int fd, void *addr)
     return -1;
 
   lock_acquire_filesys ();
+  
   /* search for the file to map */
   struct file_info *info = find_file_info (fd);
   if (!info || !info->file)
