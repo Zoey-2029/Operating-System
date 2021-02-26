@@ -85,9 +85,7 @@ find_in_frame_table (void *kpage)
       struct frame_table_entry *f
           = list_entry (e, struct frame_table_entry, elem);
       if (f->frame == kpage)
-        {
           return f;
-        }
     }
   return NULL;
 }
@@ -116,6 +114,12 @@ evict_frame (void)
       else
         {
           pagedir_clear_page (fte->owner->pagedir, fte->spte->user_vaddr);
+
+          if (fte->spte->source == FILE && fte->spte->writable && 
+              pagedir_is_accessed (curr->pagedir, fte->spte->user_vaddr))
+              file_write_at (fte->spte->file, fte->spte->user_vaddr, 
+                            fte->spte->read_bytes, fte->spte->file_offset);
+
           void *kpage = fte->frame;
           size_t index = write_to_block (fte->frame);
           fte->spte->source = SWAP;
@@ -203,8 +207,8 @@ free_single_page (struct hash_elem *e, void *aux UNUSED)
       = hash_entry (e, struct sup_page_table_entry, elem);
 
   /* write file back to disk only when the bits are dirty */
-  if (spte->source == FILE && spte->fte
-      && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
+  if (spte->source == FILE && spte->fte && spte->writable &&
+      pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
     file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
                    spte->file_offset);
 

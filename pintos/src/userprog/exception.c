@@ -152,7 +152,7 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
   void *upage = pg_round_down (fault_addr);
-
+  
   lock_acquire_vm ();
   /* First check if we have this page stored in page table
   if so, load it from file to be mmaped, excutable file or swap 

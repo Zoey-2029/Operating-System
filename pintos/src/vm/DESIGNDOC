@@ -338,12 +338,12 @@ allocate pages for the mapped file.
 In struct sup_page_table_entry, we use members "source" and "writable"
 to keep track of the status of page, indicating whether it comes 
 from an excutable file, mapped file or swap. When we allocate pages 
-lazily, the page source is DEAFULT, and we modify it to MMAP in mmap 
-systemcall, to FILE if the page is an exctable file to be loaded, and
-to SWAP when we evict the page to swap. The major difference is 
-when we load pages, we call load_page_from_file() for files. By keeping 
-track of these information, we can share much of the code, and it 
-makes our code clearer.
+lazily, the page source is DEAFULT, and to FILE if the page is a
+file to be loaded, and to SWAP when we evict the page to swap. 
+The major difference is when we load pages, we call load_page_from_file()
+for files and load_page_from_swap() for swap pages. By keeping track of 
+these information, we can share much of the code, and it makes our code 
+clearer.
 
 
 			   SURVEY QUESTIONS
