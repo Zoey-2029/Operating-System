@@ -152,11 +152,12 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
   void *upage = pg_round_down (fault_addr);
+
   
-  lock_acquire_vm ();
   /* First check if we have this page stored in page table
   if so, load it from file to be mmaped, excutable file or swap 
   exit if loading fails */
+  lock_acquire_vm ();
   struct sup_page_table_entry *entry = find_in_table (upage);
   if (entry != NULL)
     {
@@ -195,8 +196,8 @@ check_addr_validity_then_grow_stack (void *addr, bool user, void *esp)
   if (user && ( !is_user_vaddr (addr) || addr < esp - 32))
       return false;
     
-  lock_acquire_vm ();
   bool valid = true;
+  lock_acquire_vm ();
   valid = grow_stack (addr);
   lock_release_vm ();
   return valid;

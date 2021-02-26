@@ -261,10 +261,9 @@ sys_halt ()
 void
 sys_exit (int status)
 {
+  printf ("%s: exit(%d)\n", thread_current ()->name, status);
   struct thread_info *info = get_child_process (
       thread_current ()->tid, &thread_current ()->parent->child_processes);
-  // printf("%d\n", thread_current ()->tid);
-  printf ("%s: exit(%d)\n", thread_current ()->name, status);
   if (info)
     info->exit_status = status;
 
@@ -343,6 +342,7 @@ sys_open (const char *file)
   info = calloc (1, sizeof (*info));
   if (info == NULL)
     return -1;
+    
   info->fd = thread_current ()->fd_count;
   thread_current ()->fd_count += 1;
   info->file = f;

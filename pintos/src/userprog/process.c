@@ -484,6 +484,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       struct sup_page_table_entry *spte = install_page_supplemental (upage);
+      if (spte == NULL)
+        return false;
       spte->writable = writable;
       spte->file = file;
       spte->file_offset = ofs;
