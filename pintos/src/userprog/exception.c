@@ -173,16 +173,13 @@ page_fault (struct intr_frame *f)
     }
   lock_release_vm ();
 
-  /* if if the address is valid, if valid, grow the stack
-  exit the thread in other cases */
+  /* If if the address is valid, if valid, grow the stack
+  exit the thread in other cases. */
   if (check_addr_validity_then_grow_stack (fault_addr, user, f->esp))
     return;
-  else 
+  else if (user)
     sys_exit(-1);
 
-  /* this code shouldn't be reached, but leave the code here for the case
-  of debugging */
-  NOT_REACHED:
   printf ("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading", user ? "user" : "kernel");

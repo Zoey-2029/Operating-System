@@ -10,7 +10,7 @@
 
 Bowen Tan tanbowen@stanford.edu
 Ziyue Xiao ziyuex@stanford.edu
-FirstName LastName <email@domain.example>
+Jizhen Wang jzwang43@stanford.edu
 
 ---- PRELIMINARIES ----
 
@@ -40,9 +40,7 @@ enum page_status
 {
   DEFAULT,
   FILE, 
-  STACK, 
-  SWAP, 
-  MMAP
+  SWAP
 };
 
 The enumeration above is used to indicate the source where to 
@@ -54,7 +52,7 @@ struct sup_page_table_entry
   enum page_status source; 		  	==> Where to load the page from
   bool writable;					        ==> If page is writable
   struct frame_table_entry *fte;	==> Store frame info
-  struct list_elem elem;			    ==> page table entry element
+  struct hash_elem elem;			    ==> page table entry element
 
   /* members to locate swap */
   bool pinned;						        ==> If the page is "pinning" 
@@ -70,7 +68,7 @@ struct sup_page_table_entry
 };
 
 The struct above is the supplamentary page table implementation. 
-Please findthe details of member above
+Please findthe details of member above.
 
 
 ---- ALGORITHMS ----
@@ -78,26 +76,35 @@ Please findthe details of member above
 >> A2: In a few paragraphs, describe your code for locating the frame,
 >> if any, that contains the data of a given page.
 
-1. Basically, with the given page, we'll search it in the supplamentary
-page table, if there is a match, we'll allocate a frame and load the page
-frome the source specified in the supplamentary page table
+1. If the frame containing the data for a page is in the memory, the 
+access is normal without page fault and follows the original implemntation 
+of pintos.
 
-2. To allocate the frame, we implemented the LUR estimation. We'll try 
-to allocate a frame for the given page, if failed, the eviction algorithm
-(second chance) will dial in to figure out which frame to evict. With the
-victim selected, if it's dirty bit was set, its data will be written to
-the SWAP and update its swap index in the supplamentary page table. Then
-remove this frame from the frame table, so it can be allocated to a new 
-page
+2. If a page fault happens, With the given page, we will search it in the 
+supplamentary page table, if there is a match, we will allocate a frame and 
+load the page frome the source specified in the supplamentary page table.
 
-3. Once the frame has been allocated for a user page, a new supplamentary
-table entry will be created and inserted to the supplamentarypage table.
-Thus, for future access, we just need to search the user page in the table
+3. If load_page was able to load the page, this means the data was loaded to 
+a frame and mapped to this page. we can allow the process to proceed.
 
+4. If no match in sup page table, we check if memory is valid for stack growth. 
+If true, we grow the stack and the excution proceeds, if not then it is an 
+invalid access.
 
 >> A3: How does your code coordinate accessed and dirty bits between
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
+
+We avoid this issue by only accessing data using user virtual address.
+
+When the program tries to find a frame to evict, it only uses the 
+process's page directory and user address for accessed bits. 
+Thus we are not modifying the kernel pagedir.
+
+For dirty bits, we also only use the process's page directory 
+and user address. This happens when we write file back to disk 
+when the bits are dirty.
+
 
 ---- SYNCHRONIZATION ----
 
@@ -116,15 +123,14 @@ for other thread releasing the lock.
 >> A5: Why did you choose the data structure(s) that you did for
 >> representing virtual-to-physical mappings?
 
-We used list to implement the supplamentary page map because it's
-easy to use. As for hash table, we have to define has function as 
-well as comparison function to use it. And for hash insert, it'll 
-order the new element which takes O(logn) time, but for list, it 
-can perform in O(1) time
+We initially thought about using list but we realized there can be many queries 
+to find an element in the supplamentary page table, it would be to costly to 
+search through a list.
 
-Also the default bucket size is pretty small (which is 4). But the
-supplamentary page table may be big as the amount of pages is large.
-in this case the hash table may have similar performance as list
+So we choosed hashmap to implement the supplamentary page map because it's
+fast and also easy to use. It allows O(1) for finding a entry. Since user 
+addresses are unique so we use those as the hash for each supplamentary 
+page entry. 
 
 
 		       PAGING TO AND FROM DISK
@@ -159,16 +165,25 @@ each member are above as well
 >> evicted.  Describe your code for choosing a frame to evict.
 
 To evict frames, we implement the clock algorithm which supports 
-second chance. We would traverse the whole frame list in the oreder 
-FIFO. That is we always check the first frame in the list,  
-....
-
+second chance. We go through the frame table and check its accessed bit.
+If the bit is 1, set to 0 and skip, if 0 evict. This is the same as what'same
+described in vm_os slides, page 15/47. We also use pinning to skip pinned 
+frames to avoid potential sync issues.
 
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
 
+First of all, pagedir_clear_page needs to be called on P's pagedir and the user
+virtual address to indicate this data is not in memory and needs to be loaded.
 
+For Q, we will locate its sup page table entry, and set the fte field to NULL.
+FTE field refers to the frame that was mapped to the user vaddr. If it's NULL,
+the program will know that this fram is no longer held by Q. 
+
+When installing the page for P, the frame table entry also gets updated so the 
+spte field is set to the new sup page table entry, so we know this frame is 
+mapped to P's page instead of Q's.
 
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
@@ -177,7 +192,7 @@ FIFO. That is we always check the first frame in the list,
 When page fault happens, we first check if the address has been 
 recorded in the supplementary page table, if so, we load pages from
 swap or filesystem. If not, we need to check if the address is truely 
-valid. THat means, if the person who tries to access the address is
+valid. That means, if the person who tries to access the address is
 the user, the address must be a valid stack address, which must be 
 non-NULL, above 0x08048000, below PHYS_BASE, and above esp - 32. 
 After passing the validity check, we are allowed to grow the stack.
@@ -189,21 +204,45 @@ After passing the validity check, we are allowed to grow the stack.
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
 
+We use a single lock f_lock for the vm system. This makes synchronization
+relatively easy. We just need to acquire the lock is any modification to vm 
+needs to happen. This includes access to frame table or page table.
+
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
 >> the page during the eviction process?  How do you avoid a race
 >> between P evicting Q's frame and Q faulting the page back in?
+
+In our implementation, evict frame only happens when the process hold the
+lock to the vm system. And if P tries to load the page back, it also needs
+the lock. So only one can happen, thus the race is prevented.
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
 
+We used pinning. For the load_page function, before we start loading the
+data from either file or swap, we set the current sup_page_table_entry to
+pinned, and our LRU eviction will skip pinned entries. In this case, we
+cannot evict the frame while it is still being read in. We only unpin the 
+frame after the load finishes.
+
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
 >> in user programs), or do you have a mechanism for "locking" frames
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
+
+We use page faults to bring in the pages. The behavior is very similar 
+to in user programs as described above. We first attempt to load in
+the page. If it fails then we see if we need to extend the stack.
+
+Since we only use user vaddr to access data, we can know the fault is on 
+user virtual address. The diffrence is if page fault is truly invalid access 
+and is cause by user, we exit the process, if it is caused by kernel, we need
+to signal and error to the kernel.
+
 
 ---- RATIONALE ----
 
@@ -213,6 +252,11 @@ After passing the validity check, we are allowed to grow the stack.
 >> possibility for deadlock but allows for high parallelism.  Explain
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
+
+We used a single lock to make the synchronization easy. But we think it still
+allows for a lof of parallelism. If there is enough memory and no page fault happens, 
+it's very rarely for the lock to be acquired and there is no impact on parallelism.
+In modern systems the ram is much larger than pintos and should rarely run out.
 
 			 MEMORY MAPPED FILES
 			 ===================
@@ -291,14 +335,13 @@ allocate pages for the mapped file.
 >> implementation either does or does not share much of the code for
 >> the two situations.
 
-In struct sup_page_table_entry, we use members "sourece" and "writable"
+In struct sup_page_table_entry, we use members "source" and "writable"
 to keep track of the status of page, indicating whether it comes 
 from an excutable file, mapped file or swap. When we allocate pages 
 lazily, the page source is DEAFULT, and we modify it to MMAP in mmap 
 systemcall, to FILE if the page is an exctable file to be loaded, and
 to SWAP when we evict the page to swap. The major difference is 
-when we load pages, we call load_page_from_file() for loading 
-excutable file and load_page_from_mmap() for mapped files. By keeping 
+when we load pages, we call load_page_from_file() for files. By keeping 
 track of these information, we can share much of the code, and it 
 makes our code clearer.
 

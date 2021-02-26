@@ -341,6 +341,8 @@ sys_open (const char *file)
 
   /* Use file_info struct to map file descriptors to files. */
   info = calloc (1, sizeof (*info));
+  if (info == NULL)
+    return -1;
   info->fd = thread_current ()->fd_count;
   thread_current ()->fd_count += 1;
   info->file = f;
@@ -563,7 +565,7 @@ sys_mmap (int fd, void *addr)
       spte->file_offset = offset;
       spte->read_bytes = page_read_bytes;
       spte->zero_bytes = page_zero_bytes;
-      spte->source = MMAP;
+      spte->source = FILE;
       spte->writable = true;
     }
   lock_release_vm ();

@@ -9,8 +9,7 @@ enum page_status
 {
   DEFAULT,
   FILE,
-  SWAP,
-  MMAP
+  SWAP
 };
 
 struct sup_page_table_entry

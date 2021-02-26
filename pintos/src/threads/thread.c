@@ -193,6 +193,8 @@ thread_create (const char *name, int priority, thread_func *function,
   /* Initialize thread_info and insert into parent's child_processes. */
   t->parent = thread_current ();
   info = calloc (1, sizeof (*info));
+  if (info == NULL)
+    return TID_ERROR;
   info->load_status = false;
   info->tid = t->tid;
   info->exit_status = 0;

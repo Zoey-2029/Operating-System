@@ -39,6 +39,7 @@
         "BITMAP.C": "cpp",
         "file.h": "c",
         "hash.h": "c",
-        "HASH.H": "cpp"
+        "HASH.H": "cpp",
+        "MALLOC.H": "cpp"
     }
 }

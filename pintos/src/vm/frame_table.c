@@ -153,22 +153,6 @@ load_page_from_swap (struct sup_page_table_entry *spte, void *kpage)
   return true;
 }
 
-/* load page from file to be mapped into memory*/
-bool
-load_page_from_mmap (struct sup_page_table_entry *spte, void *kpage)
-{
-  file_seek (spte->file, spte->file_offset);
-
-  int n_read = file_read (spte->file, kpage, spte->read_bytes);
-  if (n_read != (int)spte->read_bytes)
-    return false;
-
-  /* The remaining bytes are zeros. */
-  ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
-  memset (kpage + n_read, 0, spte->zero_bytes);
-  return true;
-}
-
 /* load pages from swap, excutable file or file to be mapped*/
 bool
 load_page (struct sup_page_table_entry *spte)
@@ -198,9 +182,6 @@ load_page (struct sup_page_table_entry *spte)
     case FILE:
       success = load_page_from_file (spte, kpage);
       break;
-    case MMAP:
-      success = load_page_from_mmap (spte, kpage);
-      break;
     case SWAP:
       success = load_page_from_swap (spte, kpage);
       break;
@@ -222,7 +203,7 @@ free_single_page (struct hash_elem *e, void *aux UNUSED)
       = hash_entry (e, struct sup_page_table_entry, elem);
 
   /* write file back to disk only when the bits are dirty */
-  if (spte->source == MMAP && spte->fte
+  if (spte->source == FILE && spte->fte
       && pagedir_is_dirty (thread_current ()->pagedir, spte->user_vaddr))
     file_write_at (spte->file, spte->user_vaddr, spte->read_bytes,
                    spte->file_offset);
