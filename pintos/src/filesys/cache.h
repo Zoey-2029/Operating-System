@@ -9,6 +9,7 @@ struct cache_entry
   char data[BLOCK_SECTOR_SIZE];
   bool dirty;
   bool loaded;
+  bool accessed;
   struct semaphore sema;
 };
 

@@ -74,21 +74,33 @@ insert_cache (block_sector_t sector)
 static bool
 evict_cache ()
 {
-  struct list_elem *e;
-  //   printf ("evict\n");
-  e = list_pop_front (&cache);
-  struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
-  block_write (fs_device, ce->sector, ce->data);
-  free (ce);
-  return true;
+
+  while (!list_empty (&cache))
+    {
+      struct list_elem *e = list_pop_front (&cache);
+      struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
+
+      if (ce->accessed)
+        {
+          ce->accessed = false;
+          list_push_back (&cache, &ce->elem);
+        }
+      else
+        {
+          block_write (fs_device, ce->sector, ce->data);
+          free (ce);
+          return true;
+        }
+    }
+  return false;
 }
 
 void
 destroy_cache ()
 {
-  //   lock_acquire (&cache_lock);
+  lock_acquire (&cache_lock);
   struct list_elem *e;
-  //   printf ("destroying\n");
+  // printf ("destroying\n");
   while (!list_empty (&cache))
     {
       e = list_pop_front (&cache);
@@ -98,7 +110,7 @@ destroy_cache ()
         block_write (fs_device, ce->sector, ce->data);
       free (ce);
     }
-  //   lock_release (&cache_lock);
+  lock_release (&cache_lock);
 }
 
 void
@@ -127,6 +139,7 @@ block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
   if (buffer)
     memcpy (buffer + bytes_read, ce->data + sector_ofs, chunk_size);
   ce->loaded = true;
+  ce->accessed = true;
   /* need debug, read ahead code. */
   //   if (sector_idx + 1 < block_size (fs_device))
   //     {
@@ -171,6 +184,7 @@ block_write_cache (block_sector_t sector_idx, const void *buffer,
     }
   memcpy (ce->data + sector_ofs, buffer + bytes_written, chunk_size);
   ce->dirty = true;
+  ce->accessed = true;
   ce->loaded = true;
   lock_release (&cache_lock);
 }
