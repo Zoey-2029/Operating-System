@@ -22,4 +22,4 @@ void block_write_cache (block_sector_t sector_idx, const void *buffer,
                         int sector_ofs, int chunk_size, int sector_left,
                         int bytes_written);
 
-void write_cache(void);
+void write_behind(void *);

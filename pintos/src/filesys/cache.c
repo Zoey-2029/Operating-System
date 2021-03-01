@@ -1,5 +1,6 @@
 #include "filesys/cache.h"
 #include "devices/block.h"
+#include "devices/timer.h"
 #include "filesys/filesys.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
@@ -14,12 +15,13 @@ static struct list cache;
 static int cache_size = 0;
 static bool evict_cache (void);
 static struct lock cache_lock;
-
+static tid_t write_t;
 void
 cache_init ()
 {
   list_init (&cache);
   lock_init (&cache_lock);
+  write_t = thread_create ("write_behind", PRI_DEFAULT, write_behind, NULL);
 }
 
 struct cache_entry *
@@ -111,8 +113,10 @@ block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
 
       if (!ce->loaded)
         {
-          //   printf ("sema_down %d\n", ce->sector);
+          printf ("sema_down %d\n", ce->sector);
+          lock_release (&cache_lock);
           sema_down (&ce->sema);
+          lock_acquire (&cache_lock);
         }
     }
   else
@@ -123,19 +127,28 @@ block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
   if (buffer)
     memcpy (buffer + bytes_read, ce->data + sector_ofs, chunk_size);
   ce->loaded = true;
+  /* need debug, read ahead code. */
+  //   if (sector_idx + 1 < block_size (fs_device))
+  //     {
+  //       ce = find_in_cache (sector_idx + 1);
+  //       if (ce)
+  //         {
+  //           lock_release (&cache_lock);
+  //           return;
+  //         }
+  //       else
+  //         {
+  //           ce = insert_cache (sector_idx + 1);
+  //         }
+  //       lock_release (&cache_lock);
+  //       block_read (fs_device, ce->sector, ce->data);
+  //       ce->loaded = true;
+  //     //   printf ("sema_up %d\n", ce->sector);
+  //       sema_up (&ce->sema);
+  //     } else {
+  //          lock_release (&cache_lock);
+  //     }
   lock_release (&cache_lock);
-  if (sector_idx + 1 < block_size (fs_device))
-    {
-      ce = find_in_cache (sector_idx + 1);
-      if (ce)
-        return;
-      else
-        ce = insert_cache (sector_idx + 1);
-      block_read (fs_device, ce->sector, ce->data);
-      ce->loaded = true;
-      //   printf ("sema_up %d\n", ce->sector);
-      sema_up (&ce->sema);
-    }
 }
 
 void
@@ -145,6 +158,13 @@ block_write_cache (block_sector_t sector_idx, const void *buffer,
 {
   lock_acquire (&cache_lock);
   struct cache_entry *ce = find_in_cache (sector_idx);
+  if (ce && !ce->loaded)
+    {
+      printf ("sema_down %d\n", ce->sector);
+      lock_release (&cache_lock);
+      sema_down (&ce->sema);
+      lock_acquire (&cache_lock);
+    }
   if (ce == NULL)
     {
       ce = insert_cache (sector_idx);
@@ -153,22 +173,27 @@ block_write_cache (block_sector_t sector_idx, const void *buffer,
   ce->dirty = true;
   ce->loaded = true;
   lock_release (&cache_lock);
-  //   block_write (fs_device, sector_idx, ce->data);
 }
 
 void
-write_cache ()
+write_behind (void *aux UNUSED)
 {
   struct list_elem *e;
-
-  for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+  while (true)
     {
-      //  printf("asdasd\n");
-      struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
-      if (ce->dirty)
+
+      lock_acquire (&cache_lock);
+      for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
         {
-          block_write (fs_device, ce->sector, ce->data);
-          ce->dirty = false;
+          //  printf("asdasd\n");
+          struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
+          if (ce->dirty)
+            {
+              block_write (fs_device, ce->sector, ce->data);
+              ce->dirty = false;
+            }
         }
+      lock_release (&cache_lock);
+      timer_sleep (100);
     }
 }
