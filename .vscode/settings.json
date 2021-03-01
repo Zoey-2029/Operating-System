@@ -40,6 +40,11 @@
         "file.h": "c",
         "hash.h": "c",
         "HASH.H": "cpp",
-        "MALLOC.H": "cpp"
+        "MALLOC.H": "cpp",
+        "cache.h": "c",
+        "list.h": "c",
+        "block.h": "c",
+        "BLOCK.H": "cpp",
+        "FREE-MAP.C": "cpp"
     }
 }

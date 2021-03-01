@@ -3,6 +3,7 @@
 #include "devices/shutdown.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "filesys/cache.h"
 #include "process.h"
 #include "threads/interrupt.h"
 #include "threads/malloc.h"
@@ -274,7 +275,7 @@ sys_exit (int status)
   lock_acquire_vm ();
   free_page_table ();
   lock_release_vm ();
-
+  // destroy_cache ();
   thread_exit ();
 }
 
@@ -342,7 +343,7 @@ sys_open (const char *file)
   info = calloc (1, sizeof (*info));
   if (info == NULL)
     return -1;
-    
+
   info->fd = thread_current ()->fd_count;
   thread_current ()->fd_count += 1;
   info->file = f;
@@ -478,7 +479,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
   // check at least one pointer
   if (size == 0)
     size = 1;
-  
+
   lock_acquire_vm ();
 
   for (unsigned i = 0; i < size; i++)
@@ -486,12 +487,12 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
       const void *addr = virtual_addr + i;
       if (!is_user_vaddr (addr))
         goto INVALID_ADDR;
-          
+
       if (!pagedir_get_page (thread_current ()->pagedir, addr))
         {
           /* If page not found but addr is above esp,
              we need to allocate memory. */
-          if (esp && esp <= addr) 
+          if (esp && esp <= addr)
             {
               if (!grow_stack (addr))
                 goto INVALID_ADDR;
@@ -508,7 +509,7 @@ check_memory_validity (const void *virtual_addr, unsigned size, void *esp)
   lock_release_vm ();
   return true;
 
-  INVALID_ADDR:
+INVALID_ADDR:
   lock_release_vm ();
   return false;
 }
@@ -521,7 +522,7 @@ sys_mmap (int fd, void *addr)
     return -1;
 
   lock_acquire_filesys ();
-  
+
   /* search for the file to map */
   struct file_info *info = find_file_info (fd);
   if (!info || !info->file)
@@ -543,10 +544,9 @@ sys_mmap (int fd, void *addr)
   void *curr_addr = addr;
   while (curr_addr < addr + file_size)
     {
-      if (!is_user_vaddr (curr_addr) || 
-          find_in_table (curr_addr) || 
-          pagedir_get_page (thread_current ()->pagedir, curr_addr))
-          return -1;
+      if (!is_user_vaddr (curr_addr) || find_in_table (curr_addr)
+          || pagedir_get_page (thread_current ()->pagedir, curr_addr))
+        return -1;
       curr_addr += PGSIZE;
     }
 
@@ -574,7 +574,9 @@ sys_mmap (int fd, void *addr)
   mapid_t mapid = 1;
   if (!list_empty (&thread_current ()->mmapped_file_list))
     mapid = list_entry (list_back (&thread_current ()->mmapped_file_list),
-                        struct mmapped_file_entry, elem) ->mapid + 1;
+                        struct mmapped_file_entry, elem)
+                ->mapid
+            + 1;
 
   /* keep track of the mmaped file */
   struct mmapped_file_entry *mmap_entry
@@ -622,7 +624,7 @@ find_file_info (int fd)
     {
       struct file_info *f = list_entry (e, struct file_info, elem);
       if (f->fd == fd)
-          return f;
+        return f;
     }
 
   return NULL;
@@ -691,7 +693,7 @@ grow_stack (const void *fault_addr)
           return false;
         }
       else
-          return true;
+        return true;
     }
   return false;
 }
