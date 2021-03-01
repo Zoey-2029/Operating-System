@@ -45,6 +45,8 @@
         "list.h": "c",
         "block.h": "c",
         "BLOCK.H": "cpp",
-        "FREE-MAP.C": "cpp"
+        "FREE-MAP.C": "cpp",
+        "synch.h": "c",
+        "TIMER.C": "cpp"
     }
 }

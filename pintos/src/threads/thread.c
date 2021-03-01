@@ -1,3 +1,4 @@
+#include "devices/timer.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -28,6 +29,10 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* List of all sleeping processes.  Processes are added to this list
+   when they are put to sleep and removed when they wake up. */
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -97,7 +102,7 @@ thread_init (void)
   lock_init (&filesys_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
+  list_init (&sleep_list);
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -483,7 +488,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
+  t->sleep_ticks = 0;
 #ifdef USERPROG
   /* Data structures related to user program. */
   sema_init (&t->sema_exec, 0);
@@ -571,6 +576,62 @@ thread_schedule_tail (struct thread *prev)
     }
 }
 
+/* Decrement the sleep ticks for blocked threads
+   and wake up if tick becomes 0. */
+void
+thread_wake_up (struct thread *t, void *aux UNUSED)
+{
+  ASSERT (is_thread (t));
+  int curr_time = timer_ticks ();
+
+  if (t->sleep_ticks <= curr_time)
+    {
+      list_remove (&t->sleepelem);
+      thread_unblock (t);
+    }
+}
+
+void
+thread_sleep (int ticks)
+{
+
+  thread_current ()->sleep_ticks = timer_ticks () + ticks;
+  list_insert_ordered (&sleep_list, &thread_current ()->sleepelem,
+                       thread_less_func, NULL);
+  thread_block ();
+}
+
+/* Compare two threads based on remaining sleep ticks. */
+bool
+thread_less_func (const struct list_elem *a_, const struct list_elem *b_,
+                  void *aux UNUSED)
+{
+  const struct thread *a = list_entry (a_, struct thread, sleepelem);
+  const struct thread *b = list_entry (b_, struct thread, sleepelem);
+
+  return a->sleep_ticks < b->sleep_ticks;
+}
+
+/* Invoke function 'func' on sleep threads, passing along 'aux'.
+   This function must be called with interrupts off. */
+void
+sleep_thread_foreach (thread_action_func *func, void *aux)
+{
+  struct list_elem *e;
+  int curr_time = timer_ticks ();
+  ASSERT (intr_get_level () == INTR_OFF);
+  for (e = list_begin (&sleep_list); e != list_end (&sleep_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, sleepelem);
+      if (t->sleep_ticks > curr_time)
+        {
+          break;
+        }
+      func (t, aux);
+    }
+}
+
 void
 lock_acquire_filesys ()
 {
@@ -582,6 +643,7 @@ lock_release_filesys ()
 {
   lock_release (&filesys_lock);
 }
+
 bool
 filesys_lock_held_by_current_thread ()
 {

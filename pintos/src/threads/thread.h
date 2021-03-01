@@ -1,8 +1,8 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
 
-#include "threads/synch.h"
 #include "kernel/hash.h"
+#include "threads/synch.h"
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -86,18 +86,20 @@ typedef int tid_t;
 struct thread
 {
   /* Owned by thread.c. */
-  tid_t tid;                 /* Thread identifier. */
-  enum thread_status status; /* Thread state. */
-  char name[16];             /* Name (for debugging purposes). */
-  uint8_t *stack;            /* Saved stack pointer. */
-  int priority;              /* Priority. */
-  struct list_elem allelem;  /* List element for all threads list. */
+  tid_t tid;                  /* Thread identifier. */
+  enum thread_status status;  /* Thread state. */
+  char name[16];              /* Name (for debugging purposes). */
+  uint8_t *stack;             /* Saved stack pointer. */
+  int priority;               /* Priority. */
+  struct list_elem allelem;   /* List element for all threads list. */
+  struct list_elem sleepelem; /* List element for sleep threads list */
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
 
   /* Supplementary page table. */
   struct hash page_table;
 
+  int sleep_ticks; /* Ticks of the thread putting to sleep. */
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir;           /* Page directory. */
@@ -127,14 +129,14 @@ struct thread_info
   struct list_elem elem;      /* List element for child_processes */
 };
 
-/* memory of files mapped into user virtual memory*/ 
+/* memory of files mapped into user virtual memory*/
 struct mmapped_file_entry
 {
-  int mapid;              /* Unique id for a mapped file in vm */
-  void *user_vaddr;       /* Start address for the mapped memory */
-  struct file *file;      /* File in disk */
-  struct list_elem elem;  /* List element for  mmapped_file_list */
-  size_t file_size;       /* size of file mapped into vm */
+  int mapid;             /* Unique id for a mapped file in vm */
+  void *user_vaddr;      /* Start address for the mapped memory */
+  struct file *file;     /* File in disk */
+  struct list_elem elem; /* List element for  mmapped_file_list */
+  size_t file_size;      /* size of file mapped into vm */
 };
 
 /* If false (default), use round-robin scheduler.
@@ -176,4 +178,13 @@ int thread_get_load_avg (void);
 void lock_release_filesys (void);
 void lock_acquire_filesys (void);
 bool filesys_lock_held_by_current_thread (void);
+
+void thread_sleep (int);
+bool thread_less_func (const struct list_elem *a_, const struct list_elem *b_,
+                       void *aux UNUSED);
+void
+thread_wake_up (struct thread *t, void *aux UNUSED);
+void
+sleep_thread_foreach (thread_action_func *func, void *aux);
+
 #endif /* threads/thread.h */

@@ -53,7 +53,7 @@ test_mlfqs_nice_10 (void)
 
 #define MAX_THREAD_CNT 20
 
-struct thread_info 
+struct thread_info_2 
   {
     int64_t start_time;
     int tick_count;
@@ -65,7 +65,7 @@ static void load_thread (void *aux);
 static void
 test_mlfqs_fair (int thread_cnt, int nice_min, int nice_step)
 {
-  struct thread_info info[MAX_THREAD_CNT];
+  struct thread_info_2 info[MAX_THREAD_CNT];
   int64_t start_time;
   int nice;
   int i;
@@ -83,7 +83,7 @@ test_mlfqs_fair (int thread_cnt, int nice_min, int nice_step)
   nice = nice_min;
   for (i = 0; i < thread_cnt; i++) 
     {
-      struct thread_info *ti = &info[i];
+      struct thread_info_2 *ti = &info[i];
       char name[16];
 
       ti->start_time = start_time;
@@ -107,7 +107,7 @@ test_mlfqs_fair (int thread_cnt, int nice_min, int nice_step)
 static void
 load_thread (void *ti_) 
 {
-  struct thread_info *ti = ti_;
+  struct thread_info_2 *ti = ti_;
   int64_t sleep_time = 5 * TIMER_FREQ;
   int64_t spin_time = sleep_time + 30 * TIMER_FREQ;
   int64_t last_time = 0;
