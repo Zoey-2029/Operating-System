@@ -276,6 +276,7 @@ sys_exit (int status)
   free_page_table ();
   lock_release_vm ();
   // destroy_cache ();
+ 
   thread_exit ();
 }
 

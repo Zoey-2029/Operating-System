@@ -35,8 +35,9 @@ filesys_init (bool format)
 void
 filesys_done (void)
 {
-  destroy_cache ();
+
   free_map_close ();
+  destroy_cache ();
 }
 
 /* Creates a file named NAME with the given INITIAL_SIZE.
