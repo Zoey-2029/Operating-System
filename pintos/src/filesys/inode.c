@@ -349,7 +349,6 @@ bool
 inode_allocate_indirect (block_sector_t sector_idx, 
                               size_t num_sectors, int level)
 {
-  //printf("***DFSD %d %d, \n", num_sectors, level);
   static char zeros[BLOCK_SECTOR_SIZE];
 
   struct inode_indirect_sector *indirect_sector = 
