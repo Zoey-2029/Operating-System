@@ -221,7 +221,7 @@ write_behind (void *aux UNUSED)
             }
         }
       lock_release_cache ();
-      timer_sleep (1000);
+      timer_sleep (10);
     }
 }
 
