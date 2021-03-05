@@ -103,14 +103,15 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length)
 {
-  struct inode_disk *disk_inode = NULL;
-  bool success = false;
-
-  ASSERT (length >= 0);
-
+  // printf("!!!!!!!!!!!!! \n");
+  // printf("****** %d, %d \n", sector, length);
   /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
+  struct inode_disk *disk_inode = NULL;
   ASSERT (sizeof *disk_inode == BLOCK_SECTOR_SIZE);
+  ASSERT (length >= 0);
+
+  bool success = false;
 
   disk_inode = calloc (1, sizeof *disk_inode);
   if (! disk_inode)
@@ -334,6 +335,7 @@ bool
 inode_allocate_indirect (block_sector_t sector_idx, 
                               size_t num_sectors, int level)
 {
+  //printf("***DFSD %d %d, \n", num_sectors, level);
   static char zeros[BLOCK_SECTOR_SIZE];
 
   struct inode_indirect_sector *indirect_sector = 
@@ -366,9 +368,6 @@ inode_allocate_indirect (block_sector_t sector_idx,
           return false;
         num_sectors -= indirect;
       }
-
-      ASSERT (num_sectors == 0);
-      return true;
   }
 
   block_write_cache (sector_idx, indirect_sector, 0, 
@@ -383,8 +382,11 @@ inode_allocate (struct inode_disk *disk_inode)
 {
   if (!disk_inode || disk_inode->length < 0)
     return false;
+  
   static char zeros[BLOCK_SECTOR_SIZE];
+  
   size_t num_sectors = bytes_to_sectors (disk_inode->length);
+  //printf("???? %d %d \n", disk_inode->length, num_sectors);
 
   for (int i = 0; i < INODE_NUM; i++) 
     {
