@@ -12,6 +12,15 @@
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
+/* number of direct, indirect and double-indirect blocks in
+a inode-disk struct*/ 
+#define INODE_NUM 12
+#define INODE_NUM_DIRECT 10
+#define INDIRECT_INDEX INODE_NUM - 2
+#define DOUBLE_INDIRECT_INDEX INODE_NUM - 1
+#define INDIRECT_BLOCK_NUM_PER_SECTOR 128
+#define DOUBLE_INDIRECT_NUM_PER_SECTOR 128 * 128
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
