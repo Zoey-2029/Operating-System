@@ -296,17 +296,15 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   //printf("****** %d %d %d %d\n", inode, offset, size, inode_length (inode));
   if (offset + size >= inode_length (inode))
     {
-      struct inode_disk *disk_inode = calloc(1, sizeof(struct inode_disk));
-      if (!disk_inode)
-        return 0;
-      block_read_cache (inode->sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0, 0);
-      int start_index = bytes_to_sectors (disk_inode->length);
+      struct inode_disk disk_inode;
+      block_read_cache (inode->sector, &disk_inode, 0, BLOCK_SECTOR_SIZE, 0, 0);
+      int start_index = bytes_to_sectors (disk_inode.length);
       int num_sectors = bytes_to_sectors (offset + size) - start_index;
-      disk_inode->length = offset + size;
+      disk_inode.length = offset + size;
       //printf("!!!!! %d %d, %d \n", disk_inode->length, start_index, num_sectors);
       if (num_sectors > 0)
-        inode_allocate (disk_inode, start_index, num_sectors);
-      block_write_cache (inode->sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0, 0);
+        inode_allocate (&disk_inode, start_index, num_sectors);
+      block_write_cache (inode->sector, &disk_inode, 0, BLOCK_SECTOR_SIZE, 0, 0);
     }
 
   while (size > 0)
