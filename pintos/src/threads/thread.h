@@ -99,6 +99,9 @@ struct thread
   /* Supplementary page table. */
   struct hash page_table;
 
+  /*Current working dir*/
+  struct dir *cwd;
+
   int sleep_ticks; /* Ticks of the thread putting to sleep. */
 #ifdef USERPROG
   /* Owned by userprog/process.c. */

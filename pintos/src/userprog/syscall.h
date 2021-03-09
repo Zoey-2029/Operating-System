@@ -40,4 +40,10 @@ mapid_t sys_mmap (int fd, void *addr);
 void sys_munmap (mapid_t mapid);
 bool grow_stack (const void *fault_addr);
 
+bool sys_chdir (const char *dir);
+bool sys_mkdir (const char *dir);
+bool sys_readdir (int fd, char *name);
+bool sys_isdir (int fd);
+int sys_inumber (int fd);
+
 #endif /* userprog/syscall.h */

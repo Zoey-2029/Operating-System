@@ -43,7 +43,8 @@ struct inode_disk
   block_sector_t blocks[INODE_NUM];
   off_t length;         /* File size in bytes. */
   unsigned magic;       /* Magic number. */
-  uint32_t unused[114]; /* Not used. */
+  bool is_dir;           /* is directory? */
+  uint32_t unused[113]; /* Not used. */
 };
 
 struct inode_indirect_sector {
@@ -119,7 +120,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, bool is_dir)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -134,6 +135,7 @@ inode_create (block_sector_t sector, off_t length)
     {
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
+      disk_inode->is_dir = is_dir;
       if (inode_allocate (disk_inode, 0, bytes_to_sectors (disk_inode->length)))
         {
           block_write_cache (sector, disk_inode, 0, BLOCK_SECTOR_SIZE, 0, 0);
@@ -618,3 +620,20 @@ free_blocks (struct inode *inode)
   
   free_double_indirect_block (disk_inode.blocks[DOUBLE_INDIRECT_INDEX], sector_nums);
 };
+
+bool inode_removed(const struct inode *inode)
+{
+  ASSERT (inode != NULL);
+  return inode->removed;
+}
+
+
+bool inode_is_dir (const struct inode *inode)
+{
+  ASSERT (inode != NULL);
+  struct inode_disk *disk_inode = malloc (sizeof *disk_inode);
+  block_read (fs_device, inode->sector, disk_inode);
+  bool is_dir = disk_inode->is_dir;
+  free (disk_inode);
+  return is_dir;
+}

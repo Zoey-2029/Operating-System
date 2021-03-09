@@ -2,8 +2,10 @@
 #include "devices/input.h"
 #include "devices/shutdown.h"
 #include "filesys/file.h"
+#include "filesys/inode.h"
 #include "filesys/filesys.h"
 #include "filesys/cache.h"
+#include "filesys/directory.h"
 #include "process.h"
 #include "threads/interrupt.h"
 #include "threads/malloc.h"
@@ -245,6 +247,63 @@ syscall_handler (struct intr_frame *f)
         break;
       }
 
+    case SYS_MKDIR:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+        const char *dir = (void *)(*((int *)f->esp + 1));
+        f->eax = sys_mkdir(dir);
+        break;
+      }
+
+    case SYS_CHDIR:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+        const char *dir = (void *)(*((int *)f->esp + 1));
+        f->eax = sys_chdir(dir);
+        break;
+      }
+
+    case SYS_READDIR:
+      {
+        args = 2;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+
+        int fd = *((int *)f->esp + 1);
+        char *name = (void *)(*((int *)f->esp + 2));
+        f->eax = sys_readdir (fd, name);
+        break;
+      }
+
+      case SYS_ISDIR:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+        int fd = *((int *)f->esp + 1);
+        f->eax = sys_isdir(fd);
+        break;
+      }
+
+      case SYS_INUMBER:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
+                                    NULL))
+          sys_exit (-1);
+        int fd = *((int *)f->esp + 1);
+        f->eax = sys_inumber(fd);
+        break;
+      }
+      
     default:
       {
         printf ("unimplemented system call \n");
@@ -309,7 +368,7 @@ sys_create (const char *file, unsigned initial_size)
 {
 
   lock_acquire_filesys ();
-  bool success = filesys_create (file, initial_size);
+  bool success = filesys_create (file, initial_size, false);
   lock_release_filesys ();
 
   return success;
@@ -696,5 +755,44 @@ grow_stack (const void *fault_addr)
       else
         return true;
     }
+  return false;
+}
+
+bool sys_chdir (const char *path)
+{
+  struct dir *dir = dir_open_from_path (path);
+
+  if (dir != NULL)
+  {
+    struct thread *curr_thread = thread_current ();
+    dir_close(curr_thread->cwd);
+    curr_thread->cwd = dir;
+    return true;
+  }
+  else return false;
+}
+
+bool sys_mkdir (const char *dir)
+{
+  return filesys_create(dir, 0, true);
+}
+
+bool sys_readdir (int fd, char *name)
+{
+  return false;
+}
+
+bool sys_isdir (int fd)
+{
+  struct file_info *info = find_file_info (fd);
+  if (info->file)
+  {
+    struct inode *inode = file_get_inode (info->file);
+    return inode_is_dir(inode);
+  }
+  else return false;
+}
+int sys_inumber (int fd)
+{
   return false;
 }

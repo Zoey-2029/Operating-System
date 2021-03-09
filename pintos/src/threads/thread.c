@@ -489,6 +489,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   t->sleep_ticks = 0;
+  t->cwd = NULL;
 #ifdef USERPROG
   /* Data structures related to user program. */
   sema_init (&t->sema_exec, 0);

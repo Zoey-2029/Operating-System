@@ -5,6 +5,7 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
 
 /* A directory. */
 struct dir 
@@ -26,7 +27,7 @@ struct dir_entry
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry));
+  return inode_create (sector, entry_cnt * sizeof (struct dir_entry), true);
 }
 
 /* Opens and returns the directory for the given INODE, of which
@@ -119,16 +120,38 @@ bool
 dir_lookup (const struct dir *dir, const char *name,
             struct inode **inode) 
 {
+  //printf("============= in dir_lookup =============\n");
   struct dir_entry e;
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  if (lookup (dir, name, &e, NULL))
+  if (strcmp (name, "..") == 0)
+  {
+    //printf("here: first\n");
+    inode_read_at (dir->inode, &e, sizeof e, 0);
     *inode = inode_open (e.inode_sector);
+    //printf("Open inode success? %d\n", inode != NULL);
+  }
+  else if (strcmp (name, ".") == 0)
+  {
+    //printf("here: second\n");
+    *inode = inode_reopen (dir->inode);
+    //printf("Open inode success? %d\n", inode != NULL);
+  }
+  else if (lookup (dir, name, &e, NULL))
+  {
+    //printf("here: third\n");
+    *inode = inode_open (e.inode_sector);
+    //printf("Open inode success? %d\n", inode != NULL);
+  }
   else
+  {
+    //printf("here: forth\n");
     *inode = NULL;
-
+    //printf("Open inode success? %d\n", inode != NULL);
+  }
+  //printf("==========================\n");
   return *inode != NULL;
 }
 
@@ -233,4 +256,155 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         } 
     }
   return false;
+}
+
+/*struct inode* dir_get_parent_inode(struct dir* dir)
+{
+  // if(dir == NULL) return NULL;
+  ASSERT(dir != NULL)
+  
+  block_sector_t sector = inode_get_parent(dir_get_inode(dir));
+  return inode_open(sector);
+}*/
+
+struct dir*
+get_dir_from_path(const char* name)
+{
+  //printf("============= in get_dir_from_path =============\n");
+  struct thread *curr_thread = thread_current ();
+  /* Absolute path */
+  struct dir *curr_dir;
+  if (name[0] == '/' || curr_thread->cwd == NULL)
+  {
+    curr_dir = dir_open_root ();
+  }
+  /* Relative path */
+  else
+  {
+    curr_dir = dir_reopen (curr_thread->cwd);
+  }
+
+  //printf("Full path is:  %s\n", name);
+  //printf("Open base success? %d\n", curr_dir != NULL);
+
+  int length = strlen(name);
+  char name_copy[length + 1];
+  memcpy(name_copy, name, length + 1);
+
+  //printf("Copied path is %s\n", name_copy);
+  
+  char *token, *save_ptr;
+  struct inode *next_inode;
+
+  for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;
+      token = strtok_r (NULL, "/", &save_ptr))
+  {
+    //printf("Token: %s\n", token);
+    if(strlen(token) > NAME_MAX)
+    {
+      //printf("Failed 1\n");
+      dir_close (curr_dir);
+      return NULL;
+    }
+
+    if (!dir_lookup (curr_dir, token, &next_inode)){
+      //printf("Failed 3\n");
+      return curr_dir;
+    }
+
+    if (inode_is_dir(next_inode))
+    {
+      //printf("Success 1\n");
+      dir_close (curr_dir);
+      curr_dir = dir_open(next_inode);
+    }
+    else 
+    {
+      //printf("Failed 2\n");
+      inode_close(next_inode);
+      // break;
+    }
+  }
+  //printf("==========================\n");
+  return curr_dir;
+}
+
+char*
+get_file_name_from_path(const char* name)
+{
+  int length = strlen(name);
+  char name_copy[length + 1];
+  memcpy(name_copy, name, length + 1);
+
+  char *token, *save_ptr, *prev_token = "";
+
+  for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;
+      token = strtok_r (NULL, "/", &save_ptr))
+  {
+    prev_token = token;
+  }
+
+  char* file_name = malloc(strlen(prev_token) + 1);
+  memcpy(file_name, prev_token, strlen(prev_token) + 1);
+  return file_name;
+}
+
+struct dir *
+dir_open_from_path (const char *name)
+{
+  struct thread *curr_thread = thread_current ();
+  /* Absolute path */
+  struct dir *curr_dir;
+  if (name[0] == '/' || curr_thread->cwd == NULL)
+  {
+    curr_dir = dir_open_root ();
+  }
+  /* Relative path */
+  else
+  {
+    curr_dir = dir_reopen (curr_thread->cwd);
+  }
+
+  int length = strlen(name);
+  char name_copy[length + 1];
+  memcpy(name_copy, name, length + 1);
+  
+  char *token, *save_ptr;
+  struct inode *next_inode;
+
+  for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;
+      token = strtok_r (NULL, "/", &save_ptr))
+  {
+    if(strlen(token) > NAME_MAX || !dir_lookup (curr_dir, token, &next_inode))
+    {
+      dir_close (curr_dir);
+      return NULL;
+    }
+
+    /* Open directory from next_inode*/
+    struct dir *next_dir = dir_open (next_inode);
+
+    /* Set next directory as current */
+    if (!next_dir)
+    {
+      dir_close (curr_dir);
+      return NULL;
+    }
+    else
+    {
+      dir_close (curr_dir);
+      curr_dir = next_dir;
+    }
+    
+  }
+
+  if (curr_dir->inode && !inode_removed(curr_dir->inode))
+  {
+    return curr_dir;
+  }
+  else 
+  {
+    dir_close(curr_dir);
+    return NULL;
+  }  
 }
