@@ -79,11 +79,14 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
 struct file *
 filesys_open (const char *name)
 {
-  struct dir *dir = dir_open_root ();
+  struct dir *dir = get_dir_from_path(name);
+  char* file_name = get_file_name_from_path(name);
+
+  //struct dir *dir = dir_open_root ();
   struct inode *inode = NULL;
 
   if (dir != NULL)
-    dir_lookup (dir, name, &inode);
+    dir_lookup (dir, file_name, &inode);
   dir_close (dir);
 
   return file_open (inode);
