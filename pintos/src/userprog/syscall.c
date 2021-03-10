@@ -779,6 +779,16 @@ bool sys_mkdir (const char *dir)
 
 bool sys_readdir (int fd, char *name)
 {
+  struct file_info *info = find_file_info (fd);
+  if (info->file)
+  {
+    struct inode *inode = file_get_inode (info->file);
+    if (inode != NULL && inode_is_dir(inode))
+    {
+      //struct dir* dir = (struct dir*) info->file;
+      if(dir_readdir((struct dir*) info->file, name)) return true;
+    }
+  }
   return false;
 }
 
@@ -794,5 +804,11 @@ bool sys_isdir (int fd)
 }
 int sys_inumber (int fd)
 {
-  return false;
+  struct file_info *info = find_file_info (fd);
+  if (info->file)
+  {
+    struct inode *inode = file_get_inode (info->file);
+    return inode_get_inumber (inode);
+  }
+  return -1;
 }
