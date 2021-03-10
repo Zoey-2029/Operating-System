@@ -197,6 +197,7 @@ thread_create (const char *name, int priority, thread_func *function,
 #ifdef USERPROG
   /* Initialize thread_info and insert into parent's child_processes. */
   t->parent = thread_current ();
+  t->cwd = thread_current() ->cwd;
   info = calloc (1, sizeof (*info));
   if (info == NULL)
     return TID_ERROR;

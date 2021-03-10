@@ -47,18 +47,26 @@ filesys_done (void)
 bool
 filesys_create (const char *name, off_t initial_size, bool is_dir)
 {
-  //printf("================ filesys_create start ================\n");
+  // printf("================ filesys_create start ================\n");
   block_sector_t inode_sector = 0;
   // struct dir *dir = dir_open_root ();
-  struct dir *dir = get_dir_from_path(name);
-  char* file_name = get_file_name_from_path(name);
+  struct dir *dir = dir_open_from_path (name);
+  // struct inode *inode = NULL;
 
-  //printf("Full path: %s\n", name);
-  //printf("Dir path: %s", name);
-  //printf("File name: %s\n", file_name);
+  if (dir && !is_dir)
+    {
+      return false;
+    }
 
-  //printf("dir failed: %d\n", dir==NULL);
-  //printf("is dir : %d\n", is_dir);
+  dir = get_dir_from_path (name);
+  char *file_name = get_file_name_from_path (name);
+
+  // printf("Full path: %s\n", name);
+  // printf("Dir path: %s", name);
+  // printf("File name: %s\n", file_name);
+
+  // printf("dir failed: %d\n", dir==NULL);
+  // printf("is dir : %d\n", is_dir);
 
   bool success = (dir != NULL && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, is_dir)
@@ -67,7 +75,7 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
     free_map_release (inode_sector, 1);
   dir_close (dir);
 
-  //printf("================ filesys_create end ================\n");
+  // printf("================ filesys_create end ================\n");
   return success;
 }
 
@@ -79,11 +87,24 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
 struct file *
 filesys_open (const char *name)
 {
-  struct dir *dir = get_dir_from_path(name);
-  char* file_name = get_file_name_from_path(name);
-
-  //struct dir *dir = dir_open_root ();
+  if (strlen (name) == 0)
+    {
+      return NULL;
+    }
+  struct dir *dir = dir_open_from_path (name);
   struct inode *inode = NULL;
+
+  if (dir)
+    {
+      inode = dir_get_inode (dir);
+      return file_open (inode);
+    }
+
+  dir = get_dir_from_path (name);
+  char *file_name = get_file_name_from_path (name);
+  // printf("%p", dir);
+  // printf("file_name %s\n", file_name);
+  // struct dir *dir = dir_open_root ();
 
   if (dir != NULL)
     dir_lookup (dir, file_name, &inode);

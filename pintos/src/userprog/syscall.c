@@ -370,7 +370,6 @@ sys_create (const char *file, unsigned initial_size)
   lock_acquire_filesys ();
   bool success = filesys_create (file, initial_size, false);
   lock_release_filesys ();
-
   return success;
 }
 
@@ -395,6 +394,7 @@ sys_open (const char *file)
 
   if (!f)
     {
+      // printf("can't open\n");
       lock_release_filesys ();
       return -1;
     }

@@ -284,8 +284,8 @@ get_dir_from_path(const char* name)
     curr_dir = dir_reopen (curr_thread->cwd);
   }
 
-  //printf("Full path is:  %s\n", name);
-  //printf("Open base success? %d\n", curr_dir != NULL);
+  // printf("Full path is:  %s\n", name);
+  // printf("Open base success? %d\n", curr_dir != NULL);
 
   int length = strlen(name);
   char name_copy[length + 1];
@@ -325,7 +325,7 @@ get_dir_from_path(const char* name)
       // break;
     }
   }
-  //printf("==========================\n");
+  // printf("==========================\n");
   return curr_dir;
 }
 
@@ -345,6 +345,8 @@ get_file_name_from_path(const char* name)
   }
 
   char* file_name = malloc(strlen(prev_token) + 1);
+  if (file_name == NULL)
+    return NULL;
   memcpy(file_name, prev_token, strlen(prev_token) + 1);
   return file_name;
 }
