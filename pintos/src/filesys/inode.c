@@ -631,9 +631,9 @@ bool inode_removed(const struct inode *inode)
 bool inode_is_dir (const struct inode *inode)
 {
   ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = malloc (sizeof *disk_inode);
-  block_read (fs_device, inode->sector, disk_inode);
-  bool is_dir = disk_inode->is_dir;
-  free (disk_inode);
+  struct inode_disk data;
+  block_read_cache (inode->sector, &data, 0, BLOCK_SECTOR_SIZE, 0, false);
+  bool is_dir = data.is_dir;
+  //free (disk_inode);
   return is_dir;
 }

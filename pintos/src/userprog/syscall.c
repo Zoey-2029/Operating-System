@@ -460,7 +460,7 @@ sys_read (int fd, void *buffer, unsigned size)
 int
 sys_write (int fd, const void *buffer, unsigned size)
 {
-
+  //printf("=================== sys_write start ====================\n");
   /* Write to console and break the buffer to 200-byte chunks. */
   if (fd == STDOUT_FILENO)
     {
@@ -481,12 +481,26 @@ sys_write (int fd, const void *buffer, unsigned size)
 
   if (!info)
     {
+      //printf("Exit 1...\n");
       lock_release_filesys ();
       return -1;
     }
 
+  struct inode *inode = file_get_inode (info->file);
+
+  //printf("inode is NULL: %d\n", inode==NULL);
+  //printf("inode is dir: %d\n", inode_is_dir(inode));
+
+  if (inode == NULL || inode_is_dir(inode))
+  {
+    //printf("Exit 2...\n");
+    lock_release_filesys ();
+    return -1;
+  }
+
   off_t bytes_written = file_write (info->file, buffer, size);
   lock_release_filesys ();
+  //printf("=================== sys_write end ====================\n");
   return bytes_written;
 }
 
