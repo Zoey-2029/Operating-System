@@ -200,6 +200,13 @@ inode_get_inumber (const struct inode *inode)
   return inode->sector;
 }
 
+/* Returns INODE's open count. */
+int
+inode_get_open_cnt (const struct inode *inode)
+{
+  return inode->open_cnt;
+}
+
 /* Closes INODE and writes it to disk.
    If this was the last reference to INODE, frees its memory.
    If INODE was also a removed inode, frees its blocks. */

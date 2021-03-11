@@ -775,12 +775,12 @@ grow_stack (const void *fault_addr)
 bool sys_chdir (const char *path)
 {
   struct dir *dir = dir_open_from_path (path);
-
   if (dir != NULL)
   {
     struct thread *curr_thread = thread_current ();
     dir_close(curr_thread->cwd);
     curr_thread->cwd = dir;
+    // printf("sys_chdir %p\n", curr_thread->cwd);
     return true;
   }
   else return false;
