@@ -446,7 +446,6 @@ dir_open_from_path (const char *name)
       // printf("relative %p\n", curr_thread->cwd);
       curr_dir = dir_reopen (curr_thread->cwd);
     }
-
   int length = strlen (name);
   char name_copy[length + 1];
   memcpy (name_copy, name, length + 1);
@@ -457,14 +456,14 @@ dir_open_from_path (const char *name)
   for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
     {
-
+      // printf("token %s\n", token);
       if (strlen (token) > NAME_MAX
           || !dir_lookup (curr_dir, token, &next_inode))
         {
           dir_close (curr_dir);
           return NULL;
         }
-
+      //  printf("token %s\n", token);
       /* Open directory from next_inode*/
       struct dir *next_dir = dir_open (next_inode);
 

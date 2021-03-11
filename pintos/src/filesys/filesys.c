@@ -123,7 +123,13 @@ bool
 filesys_remove (const char *name)
 {
   struct dir *dir = dir_open_from_path (name);
-  if (dir && dir_get_inode (dir) == dir_get_inode (thread_current ()->cwd))
+  if (dir && inode_is_dir(dir_get_inode(dir)) && dir_get_inode (dir) == dir_get_inode (thread_current ()->cwd))
+    {
+      dir_close (dir);
+      return false;
+    }
+  char tmp[NAME_MAX];
+  if (dir && inode_is_dir(dir_get_inode(dir)) && dir_readdir (dir, tmp))
     {
       dir_close (dir);
       return false;
@@ -132,7 +138,7 @@ filesys_remove (const char *name)
   dir = get_dir_from_path (name);
   char *file_name = get_file_name_from_path (name);
   // printf("dir %p file name %s\n", dir, file_name);
-
+  
   bool success = dir != NULL && dir_remove (dir, file_name);
   dir_close (dir);
 
