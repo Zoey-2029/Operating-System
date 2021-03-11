@@ -127,20 +127,20 @@ dir_lookup (const struct dir *dir, const char *name, struct inode **inode)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  if (strcmp (name, "..") == 0)
-    {
-      // printf("here: first\n");
-      inode_read_at (dir->inode, &e, sizeof e, 0);
-      *inode = inode_open (e.inode_sector);
-      // printf("Open inode success? %d\n", inode != NULL);
-    }
-  else if (strcmp (name, ".") == 0)
-    {
-      // printf("here: second\n");
-      *inode = inode_reopen (dir->inode);
-      // printf("Open inode success? %d\n", inode != NULL);
-    }
-  else if (lookup (dir, name, &e, NULL))
+  // if (strcmp (name, "..") == 0)
+  //   {
+  //     // printf("here: first\n");
+  //     inode_read_at (dir->inode, &e, sizeof e, 0);
+  //     *inode = inode_open (e.inode_sector);
+  //     // printf("Open inode success? %d\n", inode != NULL);
+  //   }
+  // else if (strcmp (name, ".") == 0)
+  //   {
+  //     // printf("here: second\n");
+  //     *inode = inode_reopen (dir->inode);
+  //     // printf("Open inode success? %d\n", inode != NULL);
+  //   }
+  if (lookup (dir, name, &e, NULL))
     {
       // printf("here: third\n");
       *inode = inode_open (e.inode_sector);
@@ -262,10 +262,10 @@ create_entry (const char *name, block_sector_t inode_sector,
   success = inode_write_at (new_inode, &e, sizeof e, ofs) == sizeof e;
   if (!success)
     {
-      inode_close (new_inode);
       goto done;
     }
 done:
+  inode_close (new_inode);
   return success;
 }
 
