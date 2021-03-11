@@ -175,11 +175,15 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector,
 
   /* Check NAME for validity. */
   if (*name == '\0' || strlen (name) > NAME_MAX)
-    return false;
+    {
+      return false;
+    }
 
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
-    goto done;
+    {
+      goto done;
+    }
 
   /* Set OFS to offset of free slot.
      If there are no free slots, then it will be set to the
@@ -294,7 +298,10 @@ dir_remove (struct dir *dir, const char *name)
   //         inode_get_open_cnt (inode));
   if (inode == NULL
       || (inode_is_dir (inode) && inode_get_open_cnt (inode) > 3))
-    goto done;
+    {
+      // printf("done %d \n", inode_get_open_cnt (inode));
+      goto done;
+    }
 
   /* Erase directory entry. */
   e.in_use = false;
@@ -490,4 +497,67 @@ dir_open_from_path (const char *name)
       dir_close (curr_dir);
       return NULL;
     }
+}
+
+bool
+check_is_dir (const char *name)
+{
+  // printf("============= in get_dir_from_path =============\n");
+  struct thread *curr_thread = thread_current ();
+  /* Absolute path */
+  struct dir *curr_dir;
+  if (name[0] == '/' || curr_thread->cwd == NULL)
+    {
+      curr_dir = dir_open_root ();
+    }
+  /* Relative path */
+  else
+    {
+      // printf("get_dir_from_path %p\n", curr_thread->cwd);
+      curr_dir = dir_reopen (curr_thread->cwd);
+    }
+
+  int length = strlen (name);
+  char name_copy[length + 1];
+  memcpy (name_copy, name, length + 1);
+
+  char *token, *save_ptr;
+  struct inode *next_inode;
+
+  for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;)
+    {
+      if (strlen (token) > NAME_MAX)
+        {
+          // printf ("Failed 1\n");
+          dir_close (curr_dir);
+          return false;
+        }
+      // printf ("before _look up \n");
+      if (!dir_lookup (curr_dir, token, &next_inode))
+        {
+          // printf ("Failed 3\n");
+          return false;
+        }
+
+      if (inode_is_dir (next_inode))
+        {
+          // printf ("Success 1\n");
+          token = strtok_r (NULL, "/", &save_ptr);
+          if (token == NULL)
+            {
+              inode_close (next_inode);
+              return true;
+            }
+          dir_close (curr_dir);
+          curr_dir = dir_open (next_inode);
+        }
+      else
+        {
+          // printf ("Failed 2\n");
+          inode_close (next_inode);
+          break;
+        }
+    }
+  // printf("==========================\n");
+  return false;
 }

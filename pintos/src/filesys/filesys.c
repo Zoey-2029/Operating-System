@@ -53,9 +53,9 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
   // struct dir *dir = dir_open_root ();
   struct dir *dir = dir_open_from_path (name);
   // struct inode *inode = NULL;
-
-  if (dir && !is_dir)
+  if (!is_dir && check_is_dir(name))
     {
+      // printf("failed! %d %d\n", is_dir, check_is_dir(name));
       dir_close(dir);
       return false;
     }
@@ -76,7 +76,7 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
   dir_close (dir);
-
+  // printf("success %d\n", success);
   // printf("================ filesys_create end ================\n");
   return success;
 }
@@ -95,23 +95,23 @@ filesys_open (const char *name)
     }
   struct dir *dir = dir_open_from_path (name);
   struct inode *inode = NULL;
-
+  // printf("dir %p name %s\n", dir, name);
   if (dir)
     {
       inode = dir_get_inode (dir);
-      return file_open (inode);
+      // printf("%p inode\n", inode);
+      struct file * res = file_open (inode);
+      return res;
     }
 
   dir = get_dir_from_path (name);
   char *file_name = get_file_name_from_path (name);
-  // printf("%p", dir);
-  // printf("file_name %s\n", file_name);
   // struct dir *dir = dir_open_root ();
 
   if (dir != NULL)
     dir_lookup (dir, file_name, &inode);
   dir_close (dir);
-
+  
   return file_open (inode);
 }
 

@@ -38,10 +38,13 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f)
 {
+  // printf("1\n");
   if (!check_memory_validity (f->esp, 1 * sizeof (int *), NULL))
     sys_exit (-1);
+    // printf("2\n");
   /* Number of args to check validity. */
   unsigned args = 0;
+  //  printf("%d\n", *(int *)f->esp);
   switch (*(int *)f->esp)
     {
     case SYS_HALT:
@@ -101,10 +104,9 @@ syscall_handler (struct intr_frame *f)
         if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
                                     NULL))
           sys_exit (-1);
-
         const char *file = (void *)(*((int *)f->esp + 1));
         unsigned initial_size = *((unsigned *)f->esp + 2);
-        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp))
+        if (!check_memory_validity (file, 1, f->esp))
           {
             sys_exit (-1);
           }
@@ -120,7 +122,7 @@ syscall_handler (struct intr_frame *f)
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
-        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp))
+        if (!check_memory_validity (file, NAME_MAX, f->esp))
           sys_exit (-1);
         f->eax = sys_remove (file);
         break;
@@ -134,7 +136,7 @@ syscall_handler (struct intr_frame *f)
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
-        if (!check_memory_validity (file, MAX_FILE_SIZE, f->esp))
+        if (!check_memory_validity (file, 1, f->esp))
           sys_exit (-1);
         f->eax = sys_open (file);
         break;
@@ -176,7 +178,6 @@ syscall_handler (struct intr_frame *f)
         if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *),
                                     NULL))
           sys_exit (-1);
-
         int fd = *((int *)f->esp + 1);
         const void *buffer = (void *)(*((int *)f->esp + 2));
         unsigned size = *((unsigned *)f->esp + 3);
@@ -342,7 +343,6 @@ sys_exit (int status)
 pid_t
 sys_exec (const char *cmd_line)
 {
-
   pid_t child_pid = process_execute (cmd_line);
 
   /* Wait for child process loading. */
@@ -350,7 +350,6 @@ sys_exec (const char *cmd_line)
   /* Get child process from pid. */
   struct thread_info *child_process
       = get_child_process (child_pid, &thread_current ()->child_processes);
-
   if (child_process && child_process->load_status)
     return child_pid;
   else
