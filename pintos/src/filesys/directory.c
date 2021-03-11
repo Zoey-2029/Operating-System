@@ -536,6 +536,7 @@ check_is_dir (const char *name)
       if (!dir_lookup (curr_dir, token, &next_inode))
         {
           // printf ("Failed 3\n");
+          dir_close (curr_dir);
           return false;
         }
 
@@ -546,6 +547,7 @@ check_is_dir (const char *name)
           if (token == NULL)
             {
               inode_close (next_inode);
+              dir_close (curr_dir);
               return true;
             }
           dir_close (curr_dir);
@@ -559,5 +561,6 @@ check_is_dir (const char *name)
         }
     }
   // printf("==========================\n");
+  dir_close (curr_dir);
   return false;
 }
