@@ -1,5 +1,5 @@
-       	       	     +-------------------------+
-		     |		CS 140	       |
+       	     +-------------------------+
+		     |			CS 140	       |
 		     | PROJECT 4: FILE SYSTEMS |
 		     |	   DESIGN DOCUMENT     |
 		     +-------------------------+
@@ -9,8 +9,8 @@
 >> Fill in the names and email addresses of your group members.
 
 Ziyue Xiao <ziyuex@stanford,edu>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Bowen Tan <tanbowen@stanford.edu>
+Jizhen Wang <jzwang43@stanford.edu>
 
 ---- PRELIMINARIES ----
 
@@ -31,7 +31,7 @@ FirstName LastName <email@domain.example>
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
 
-# the number of direct, indirect and double indirect block
+# the number of direct, indirect, and double indirect block
 in a block sector
 #define INODE_NUM 12
 #define INODE_NUM_DIRECT 10
@@ -62,7 +62,7 @@ struct inode_indirect_sector
 
 >> A2: What is the maximum size of a file supported by your inode
 >> structure?  Show your work.
-Inode staucture would support 10 direct blocks, 1 indirect block 
+Inode structure would support 10 direct blocks, 1 indirect block 
 and 1 double indirect block, so the file size supported is:
 Level 0 -- 10 sectors * 512 bytes per sector 
           = 5120 bytes
@@ -80,20 +80,20 @@ Total   -- 8459264 bytes
 >> extend a file at the same time.
 
 When a process wants to write to a file, it will first check if current 
-write would extend the file. If so, one process get the lock of that 
-inode allocate empty blocks and modify the file length. So when two 
+write would extend the file. If so, one process gets the lock of that 
+inode allocate empty blocks and modify the file length. So, when two 
 processes both wants to extend a file, lock of that inode would protest 
 them from extending the file at the same time.
 
 >> A4: Suppose processes A and B both have file F open, both
 >> positioned at end-of-file.  If A reads and B writes F at the same
 >> time, A may read all, part, or none of what B writes.  However, A
->> may not read data other than what B writes, e.g. if B writes
+>> may not read data other than what B writes, e.g., if B writes
 >> nonzero data, A is not allowed to see all zeros.  Explain how your
 >> code avoids this race.
 
 If a process tries to write to a file, it will get the lock of that 
-inode, releases the lock when it finished writing the file. So in our
+inode, releases the lock when it finished writing the file. So, in our
 design, the reader can only see all or none of what B writes. 
 
 >> A5: Explain how your synchronization design provides "fairness".
@@ -103,10 +103,10 @@ design, the reader can only see all or none of what B writes.
 >> processes writing to a file cannot prevent another process forever
 >> from reading the file.
 
-Becasue reading a file doesn't affect the inode structure, so the 
-reading process won't get a lock and will not indefinitely block writers.
+Because reading a file does not affect the inode structure, so the 
+reading process will not get a lock and will not indefinitely block writers.
 And writers, no matter whether they get the lock, they will not block 
-readers since the reader doesn't need to get the lock to read files. 
+readers since the reader does not need to get the lock to read files. 
 
 
 ---- RATIONALE ----
@@ -119,7 +119,7 @@ readers since the reader doesn't need to get the lock to read files.
 
 Our inode structure is a multilevel index, it contains 10 direct 
 blocks, 1 indirect block and 1 double indirect block. We choose this
-particular combination because it is large eoungh to support a 8M file. 
+particular combination because it is large enough to support an 8M file. 
 In fact, we can modify the static variables declared above to get a 
 different combination based on our needs, only if the size of 
 disk_inode preserves as a block size. 
@@ -133,10 +133,41 @@ disk_inode preserves as a block size.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct thread {
+  struct dir *cwd;
+};
+cwd is used to track the thread's current working directory
+
+struct inode_disk {
+  bool isdir;
+};
+This member indicates if the disk inode is a directory
+
 ---- ALGORITHMS ----
 
 >> B2: Describe your code for traversing a user-specified path.  How
 >> do traversals of absolute and relative paths differ?
+
+Since each tokenized portion in the user path is corresponded to an
+inode, we can treat each token as an individual folder/file.
+
+We have defined "get_dir_from_path" and "get_file_name_from_path"
+functions to help parse a user path.
+
+1. The "get_dir_from_path" checks if the first char is '/'. If true,
+meaning the user path is absolute, then it opens the root as "curr_dir".
+Otherwise (relative path), the thread's current working dir is opened. 
+Next, the function "splits" the user path by '/', and tries to lookup 
+the token in "curr_dir" and extracts the inode (the lookup function is 
+also updated to handle "." and ".." directory). Then it checks if the
+inode is a directory and open it as "curr_dir". By doing so, the last
+opened "curr_dir" is the valid directory which can be extracted from
+the user path.
+
+2. The "get_file_name_from_path" works very similar. It also "splits"
+the user path by '/' and look for the last token, which is the file 
+name to return.
+
 
 ---- SYNCHRONIZATION ----
 
@@ -145,16 +176,38 @@ disk_inode preserves as a block size.
 >> should succeed, as should only one of two simultaneous attempts to
 >> create a file with the same name, and so on.
 
+We have implemented a global filesys lock. So, each sys_call will try
+to acquire the lock before it can perform. In this way, each sys_call 
+will be atomic so no other thread can interrupt it.
+
+Admittedly, this may not be the best design, since there is only one 
+global lock and if multiple threads are calling independent sys_calls,
+they must execute one-by-one, instead of in-parallel.
+
+Also, we had the idea to add a "dir_lock" for each opened directory. In
+this way independent sys_calls can run in-parallel. If we have more time,
+we will make this selection.
+
 >> B5: Does your implementation allow a directory to be removed if it
 >> is open by a process or if it is in use as a process's current
 >> working directory?  If so, what happens to that process's future
 >> file system operations?  If not, how do you prevent it?
+
+It's not allowed to remove a directory which is in use or opened by 
+other threads. Though we did not implement individual lock for each 
+directory, we're checking the "open_cnt" of inode before removing a
+directory, making sure there's no other process is using it.
 
 ---- RATIONALE ----
 
 >> B6: Explain why you chose to represent the current directory of a
 >> process the way you did.
 
+The current working directory is tracked by the "cwd" member in the 
+thread structure, and it's initialized to NULL when creating a thread. And
+for the first time accessing it, it'll be set to the root. 
+Also, it's easy to maintain and update. For any chdir operation, just need
+to close the precious cwd and link the new opened one to it.
 			     BUFFER CACHE
 			     ============
 
@@ -191,7 +244,7 @@ static struct semaphore read_ahead_sema; /* Sema for read ahead. */
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 
-We implemented the LRU algorithm with second chance. When an cache entry is 
+We implemented the LRU algorithm with second chance. When a cache entry is 
 accessed, we set the accessed bit to 1. When evicting, if the bit is 1, 
 we set it to 0 and pushed to the back (second change). If access bit is 0 and
 the entry is fully loaded from read_ahead or read, we can safely write to disk and 
@@ -202,11 +255,11 @@ evict the cache.
 As the cache table gets initialized, the program will start a 
 separate thread with function write_behind.
 
-This thread will run an inifinite loop, write dirty cache to disk and 
+This thread will run an infinite loop, write dirty cache to disk and 
 go to sleep using timer_sleep(). 
 
 Dirty caches are marked by the dirty 
-bit in the cache_entry, when a write happens the corresponding cache 
+bit in the cache_entry when a write happens the corresponding cache 
 will be set to dirty, allowing write behind to write to disk.
 
 
@@ -215,7 +268,7 @@ will be set to dirty, allowing write behind to write to disk.
 As the cache table gets initialized, the program will start a separate 
 thread that goes to sleep by default. 
 
-The thread only wake up if we need read ahead and sema is up on read_ahead_sema;
+The thread only wakes up if we need read ahead and sema is up on read_ahead_sema;
 The read_ahead_list contains what are needed to be read ahead, the thread will
 read those, the loaded to true so other threads know the cache is loaded.
 
@@ -229,21 +282,21 @@ wake up again.
 >> that block?
 
 We have a cache_lock that needs to be acquired when performing
-any task on the cache table. Thus if a process is reading or writing,
+any task on the cache table. Thus, if a process is reading or writing,
 other processes will wait until the action finishes before they can
 possibly start evicting the buffer cache block.
 
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
 
-Eviction only happends when we try to insert a cache block,
+Eviction only happens when we try to insert a cache block,
 which requires the lock on the cache table. 
 
 Other processes will need to acquire the cache lock before 
-accessing this block, and the lock is only relased after the eviction is 
+accessing this block, and the lock is only released after the eviction is 
 finished.
 
-Thusother processes are prevented from attempting to access the block until 
+Thus, other processes are prevented from attempting to access the block until 
 eviction is finished.
 
 ---- RATIONALE ----
@@ -252,12 +305,12 @@ eviction is finished.
 >> and workloads likely to benefit from read-ahead and write-behind.
 
 Buffer caching: If a file needs to be read and written multiple times 
-in a short time period, the workload will benefit a lof 
+in a short time period, the workload will benefit a lot 
 since we do not have to perform many disk operations, 
 just need to update the cache.
 
 Read-ahead: when a workload is loading a large sequential file,
-it is going to benefit since read-ahead allow us to load the info before hand,
+it is going to benefit since read-ahead allow us to load the info beforehand,
 and saves time.
 
 Write-behind: when a workload modifies certain files/sectors many times,
