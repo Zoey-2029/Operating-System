@@ -5,6 +5,7 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
@@ -76,6 +77,7 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
   dir_close (dir);
+  free (file_name);
   // printf("success %d\n", success);
   // printf("================ filesys_create end ================\n");
   return success;
@@ -111,7 +113,7 @@ filesys_open (const char *name)
   if (dir != NULL)
     dir_lookup (dir, file_name, &inode);
   dir_close (dir);
-  
+  free (file_name);
   return file_open (inode);
 }
 
@@ -128,7 +130,7 @@ filesys_remove (const char *name)
       dir_close (dir);
       return false;
     }
-  char tmp[NAME_MAX];
+  char tmp[NAME_MAX + 1];
   if (dir && inode_is_dir(dir_get_inode(dir)) && dir_readdir (dir, tmp))
     {
       dir_close (dir);
@@ -141,7 +143,7 @@ filesys_remove (const char *name)
   
   bool success = dir != NULL && dir_remove (dir, file_name);
   dir_close (dir);
-
+  free (file_name);
   return success;
 }
 
