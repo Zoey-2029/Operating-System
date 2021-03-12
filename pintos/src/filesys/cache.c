@@ -12,14 +12,12 @@
 
 #define CACHE_MAX_SIZE 64
 static struct list cache;
-static struct list read_ahead_list;
+static struct list read_ahead_list; /* List of entries to read ahead. */
 static int cache_size = 0;
-static bool evict_cache (void);
-static struct lock cache_lock;
-static struct lock read_ahead_lock;
-static struct semaphore read_ahead_sema;
-static tid_t write_t;
-static tid_t read_t;
+static bool evict_cache (void);          /* LRU eviction for cache. */
+static struct lock cache_lock;           /* Lock for cache table. */
+static struct lock read_ahead_lock;      /* Lock for read ahead. */
+static struct semaphore read_ahead_sema; /* Sema for read ahead. */
 
 void
 cache_init ()
@@ -29,8 +27,8 @@ cache_init ()
   lock_init (&cache_lock);
   sema_init (&read_ahead_sema, 0);
   lock_init (&read_ahead_lock);
-  write_t = thread_create ("write_behind", PRI_DEFAULT, write_behind, NULL);
-  read_t = thread_create ("read_ahead", PRI_DEFAULT, read_ahead, NULL);
+  thread_create ("write_behind", PRI_DEFAULT, write_behind, NULL);
+  thread_create ("read_ahead", PRI_DEFAULT, read_ahead, NULL);
 }
 
 struct cache_entry *
@@ -206,7 +204,7 @@ write_behind (void *aux UNUSED)
             }
         }
       lock_release_cache ();
-      timer_sleep (10);
+      timer_sleep (100);
     }
 }
 

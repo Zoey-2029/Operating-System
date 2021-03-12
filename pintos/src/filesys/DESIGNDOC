@@ -164,14 +164,63 @@ disk_inode preserves as a block size.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct cache_entry
+{
+  block_sector_t sector;
+  struct list_elem elem;      /* list element for frame table */
+  struct list_elem read_elem; /* list element for frame table */
+  char data[BLOCK_SECTOR_SIZE];
+  bool dirty;
+  bool loaded;
+  bool accessed;
+  struct semaphore sema;
+};
+
+The cache_entry struct saves the data we need for using the cache table.
+
+static struct list cache;
+static struct list read_ahead_list; /* List of entries to read ahead. */
+static int cache_size = 0;
+static bool evict_cache (void);          /* LRU eviction for cache. */
+static struct lock cache_lock;           /* Lock for cache table. */
+static struct lock read_ahead_lock;      /* Lock for read ahead. */
+static struct semaphore read_ahead_sema; /* Sema for read ahead. */
+
 ---- ALGORITHMS ----
 
 >> C2: Describe how your cache replacement algorithm chooses a cache
 >> block to evict.
 
+We implemented the LRU algorithm with second chance. When an cache entry is 
+accessed, we set the accessed bit to 1. When evicting, if the bit is 1, 
+we set it to 0 and pushed to the back (second change). If access bit is 0 and
+the entry is fully loaded from read_ahead or read, we can safely write to disk and 
+evict the cache.
+
 >> C3: Describe your implementation of write-behind.
 
+As the cache table gets initialized, the program will start a 
+separate thread with function write_behind.
+
+This thread will run an inifinite loop, write dirty cache to disk and 
+go to sleep using timer_sleep(). 
+
+Dirty caches are marked by the dirty 
+bit in the cache_entry, when a write happens the corresponding cache 
+will be set to dirty, allowing write behind to write to disk.
+
+
 >> C4: Describe your implementation of read-ahead.
+
+As the cache table gets initialized, the program will start a separate 
+thread that goes to sleep by default. 
+
+The thread only wake up if we need read ahead and sema is up on read_ahead_sema;
+The read_ahead_list contains what are needed to be read ahead, the thread will
+read those, the loaded to true so other threads know the cache is loaded.
+
+After finishing reading, the thread will go back sleep by sema_down, waiting to
+wake up again.
 
 ---- SYNCHRONIZATION ----
 
@@ -179,13 +228,42 @@ disk_inode preserves as a block size.
 >> buffer cache block, how are other processes prevented from evicting
 >> that block?
 
+We have a cache_lock that needs to be acquired when performing
+any task on the cache table. Thus if a process is reading or writing,
+other processes will wait until the action finishes before they can
+possibly start evicting the buffer cache block.
+
 >> C6: During the eviction of a block from the cache, how are other
 >> processes prevented from attempting to access the block?
+
+Eviction only happends when we try to insert a cache block,
+which requires the lock on the cache table. 
+
+Other processes will need to acquire the cache lock before 
+accessing this block, and the lock is only relased after the eviction is 
+finished.
+
+Thusother processes are prevented from attempting to access the block until 
+eviction is finished.
 
 ---- RATIONALE ----
 
 >> C7: Describe a file workload likely to benefit from buffer caching,
 >> and workloads likely to benefit from read-ahead and write-behind.
+
+Buffer caching: If a file needs to be read and written multiple times 
+in a short time period, the workload will benefit a lof 
+since we do not have to perform many disk operations, 
+just need to update the cache.
+
+Read-ahead: when a workload is loading a large sequential file,
+it is going to benefit since read-ahead allow us to load the info before hand,
+and saves time.
+
+Write-behind: when a workload modifies certain files/sectors many times,
+it is going to benefit since instead of writing immediately with many disk ops,
+we write-behind when the updates are finished.
+
 
 			   SURVEY QUESTIONS
 			   ================
