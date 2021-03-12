@@ -1,16 +1,17 @@
+#include "threads/thread.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
-#include "threads/thread.h"
 #include "threads/vaddr.h"
 #include <debug.h>
 #include <random.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include "filesys/directory.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -187,10 +188,12 @@ thread_create (const char *name, int priority, thread_func *function,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  
+
 #ifdef USERPROG
   /* Initialize thread_info and insert into parent's child_processes. */
   t->parent = thread_current ();
+  if (thread_current ()->cwd)
+    t->cwd = dir_reopen (thread_current ()->cwd);
   info = calloc (1, sizeof (*info));
   info->load_status = false;
   info->tid = t->tid;
@@ -566,12 +569,14 @@ thread_schedule_tail (struct thread *prev)
     }
 }
 
-void lock_acquire_filesys ()
+void
+lock_acquire_filesys ()
 {
   lock_acquire (&filesys_lock);
 }
 
-void lock_release_filesys ()
+void
+lock_release_filesys ()
 {
   lock_release (&filesys_lock);
 }

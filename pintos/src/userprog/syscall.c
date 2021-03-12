@@ -2,19 +2,23 @@
 #include "devices/input.h"
 #include "devices/shutdown.h"
 #include "filesys/file.h"
+#include "filesys/inode.h"
 #include "filesys/filesys.h"
+#include "filesys/cache.h"
+#include "filesys/directory.h"
 #include "process.h"
 #include "threads/interrupt.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/exception.h"
 #include "userprog/pagedir.h"
 #include <console.h>
-#include <syscall-nr.h>
 #include <string.h>
+#include <syscall-nr.h>
 #define MAX_WRITE_CHUNK 200
 
-#define MAX_FILE_SIZE 14
+#define MAX_FILE_SIZE 16
 
 static void syscall_handler (struct intr_frame *);
 static struct file_info *find_file_info (int fd);
@@ -43,7 +47,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_HALT:
       {
         args = 0;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         sys_halt ();
@@ -53,7 +57,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXIT:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int status = *((int *)f->esp + 1);
@@ -64,7 +68,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXEC:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         const char *cmd_line = (void *)(*((int *)f->esp + 1));
@@ -75,7 +79,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         pid_t pid = *((pid_t *)f->esp + 1);
@@ -86,7 +90,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_CREATE:
       {
         args = 2;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
@@ -98,7 +102,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_REMOVE:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
@@ -109,7 +113,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_OPEN:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         const char *file = (void *)(*((int *)f->esp + 1));
@@ -120,7 +124,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_FILESIZE:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -131,7 +135,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_READ:
       {
         args = 3;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -144,7 +148,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_WRITE:
       {
         args = 3;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -157,7 +161,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_SEEK:
       {
         args = 2;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -169,7 +173,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_TELL:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -180,7 +184,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_CLOSE:
       {
         args = 1;
-        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof(int *)))
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)))
           sys_exit (-1);
 
         int fd = *((int *)f->esp + 1);
@@ -188,6 +192,62 @@ syscall_handler (struct intr_frame *f)
         break;
       }
 
+    case SYS_MKDIR:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)
+                                    ))
+          sys_exit (-1);
+        const char *dir = (void *)(*((int *)f->esp + 1));
+        f->eax = sys_mkdir (dir);
+        break;
+      }
+
+    case SYS_CHDIR:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)
+                                    ))
+          sys_exit (-1);
+        const char *dir = (void *)(*((int *)f->esp + 1));
+        f->eax = sys_chdir (dir);
+        break;
+      }
+
+    case SYS_READDIR:
+      {
+        args = 2;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)
+                                    ))
+          sys_exit (-1);
+
+        int fd = *((int *)f->esp + 1);
+        char *name = (void *)(*((int *)f->esp + 2));
+        f->eax = sys_readdir (fd, name);
+        break;
+      }
+
+    case SYS_ISDIR:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)
+                                    ))
+          sys_exit (-1);
+        int fd = *((int *)f->esp + 1);
+        f->eax = sys_isdir (fd);
+        break;
+      }
+
+    case SYS_INUMBER:
+      {
+        args = 1;
+        if (!check_memory_validity ((int *)f->esp + 1, args * sizeof (int *)
+                                    ))
+          sys_exit (-1);
+        int fd = *((int *)f->esp + 1);
+        f->eax = sys_inumber (fd);
+        break;
+      }
     default:
       {
         printf ("unimplemented system call \n");
@@ -222,9 +282,9 @@ sys_exit (int status)
 pid_t
 sys_exec (const char *cmd_line)
 {
-  if (!check_memory_validity (cmd_line, sizeof(char *)) ||
-      !check_memory_validity (cmd_line, strlen(cmd_line)))
-      sys_exit (-1);
+  if (!check_memory_validity (cmd_line, sizeof (char *))
+      || !check_memory_validity (cmd_line, strlen (cmd_line)))
+    sys_exit (-1);
 
   pid_t child_pid = process_execute (cmd_line);
 
@@ -254,7 +314,7 @@ sys_create (const char *file, unsigned initial_size)
     sys_exit (-1);
 
   lock_acquire_filesys ();
-  bool success = filesys_create (file, initial_size);
+  bool success = filesys_create (file, initial_size, false);
   lock_release_filesys ();
 
   return success;
@@ -273,7 +333,7 @@ sys_remove (const char *file)
   return success;
 }
 
-int 
+int
 sys_open (const char *file)
 {
   if (!check_memory_validity (file, MAX_FILE_SIZE))
@@ -322,7 +382,7 @@ sys_read (int fd, void *buffer, unsigned size)
 {
   if (!check_memory_validity (buffer, size))
     sys_exit (-1);
-    
+
   unsigned bytes_read = 0;
 
   if (fd == STDIN_FILENO)
@@ -350,9 +410,7 @@ sys_read (int fd, void *buffer, unsigned size)
 int
 sys_write (int fd, const void *buffer, unsigned size)
 {
-  if (!check_memory_validity (buffer, size))
-    sys_exit (-1);
-
+  //printf("=================== sys_write start ====================\n");
   /* Write to console and break the buffer to 200-byte chunks. */
   if (fd == STDOUT_FILENO)
     {
@@ -362,7 +420,7 @@ sys_write (int fd, const void *buffer, unsigned size)
           putbuf ((char *)(buffer + bytes_written), MAX_WRITE_CHUNK);
           bytes_written += MAX_WRITE_CHUNK;
         }
-  
+
       putbuf ((char *)(buffer + bytes_written),
               (size_t) (size - bytes_written));
 
@@ -373,11 +431,26 @@ sys_write (int fd, const void *buffer, unsigned size)
 
   if (!info)
     {
+      //printf("Exit 1...\n");
       lock_release_filesys ();
       return -1;
     }
+
+  struct inode *inode = file_get_inode (info->file);
+
+  //printf("inode is NULL: %d\n", inode==NULL);
+  //printf("inode is dir: %d\n", inode_is_dir(inode));
+
+  if (inode == NULL || inode_is_dir(inode))
+  {
+    //printf("Exit 2...\n");
+    lock_release_filesys ();
+    return -1;
+  }
+
   off_t bytes_written = file_write (info->file, buffer, size);
   lock_release_filesys ();
+  //printf("=================== sys_write end ====================\n");
   return bytes_written;
 }
 
@@ -387,7 +460,7 @@ sys_seek (int fd, unsigned position)
   lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
   if (info)
-      file_seek (info->file, position);
+    file_seek (info->file, position);
   lock_release_filesys ();
 }
 
@@ -410,7 +483,7 @@ sys_tell (int fd)
 void
 sys_close (int fd)
 {
-  lock_acquire_filesys();
+  lock_acquire_filesys ();
   struct file_info *info = find_file_info (fd);
   if (info)
     {
@@ -418,7 +491,7 @@ sys_close (int fd)
       list_remove (&info->elem);
       free (info);
     }
-  lock_release_filesys();
+  lock_release_filesys ();
 }
 
 /* Check if the user pointer is valid.
@@ -428,7 +501,8 @@ static bool
 check_memory_validity (const void *virtual_addr, unsigned size)
 {
   // at least check one pointer
-  if (size == 0) size = 1;
+  if (size == 0)
+    size = 1;
   for (unsigned i = 0; i < size; i++)
     {
       const void *addr = virtual_addr + i;
@@ -437,9 +511,8 @@ check_memory_validity (const void *virtual_addr, unsigned size)
        a pointer below the code segment
        a pointer to kernel virtual address space,
        a pointer to unmapped virtual memory.  */
-      if (addr == NULL || addr < (void *)0x08048000 || 
-          !is_user_vaddr (addr) || 
-          !pagedir_get_page (thread_current ()->pagedir, addr))
+      if (addr == NULL || addr < (void *)0x08048000 || !is_user_vaddr (addr)
+          || !pagedir_get_page (thread_current ()->pagedir, addr))
         return false;
     }
 
@@ -467,7 +540,7 @@ find_file_info (int fd)
 static void
 free_file_info ()
 {
-  lock_acquire_filesys();
+  lock_acquire_filesys ();
   struct list_elem *e;
   struct list *l = &thread_current ()->file_info_list;
   for (e = list_begin (l); e != list_end (l);)
@@ -480,7 +553,7 @@ free_file_info ()
           free (f);
         }
     }
-  lock_release_filesys();
+  lock_release_filesys ();
 }
 
 static void
@@ -496,4 +569,60 @@ free_child_processes_info ()
       if (f)
         free (f);
     }
+}
+
+
+bool sys_chdir (const char *path)
+{
+  struct dir *dir = dir_open_from_path (path);
+  if (dir != NULL)
+  {
+    struct thread *curr_thread = thread_current ();
+    dir_close(curr_thread->cwd);
+    curr_thread->cwd = dir;
+    // printf("sys_chdir %p\n", curr_thread->cwd);
+    return true;
+  }
+  else return false;
+}
+
+bool sys_mkdir (const char *dir)
+{
+  return filesys_create(dir, 0, true);
+}
+
+bool sys_readdir (int fd, char *name)
+{
+  struct file_info *info = find_file_info (fd);
+  if (info->file)
+  {
+    struct inode *inode = file_get_inode (info->file);
+    if (inode != NULL && inode_is_dir(inode))
+    {
+      //struct dir* dir = (struct dir*) info->file;
+      if(dir_readdir((struct dir*) info->file, name)) return true;
+    }
+  }
+  return false;
+}
+
+bool sys_isdir (int fd)
+{
+  struct file_info *info = find_file_info (fd);
+  if (info->file)
+  {
+    struct inode *inode = file_get_inode (info->file);
+    return inode_is_dir(inode);
+  }
+  else return false;
+}
+int sys_inumber (int fd)
+{
+  struct file_info *info = find_file_info (fd);
+  if (info->file)
+  {
+    struct inode *inode = file_get_inode (info->file);
+    return inode_get_inumber (inode);
+  }
+  return -1;
 }

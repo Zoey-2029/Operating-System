@@ -106,7 +106,8 @@ struct thread
     struct file *exec_file;             /* Executable file. */
     int fd_count;
 #endif
-
+    /*Current working dir*/
+    struct dir *cwd;
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
