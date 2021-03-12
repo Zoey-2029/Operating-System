@@ -33,7 +33,6 @@ struct inode
   int open_cnt;          /* Number of openers. */
   bool removed;          /* True if deleted, false otherwise. */
   int deny_write_cnt;    /* 0: writes ok, >0: deny writes. */
-  // struct inode_disk data; /* Inode content. */
   struct lock lock;
 };
 
@@ -264,7 +263,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 {
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
-  // uint8_t *bounce = NULL;
 
   while (size > 0)
     {
@@ -291,7 +289,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       offset += chunk_size;
       bytes_read += chunk_size;
     }
-  // free (bounce);
 
   return bytes_read;
 }

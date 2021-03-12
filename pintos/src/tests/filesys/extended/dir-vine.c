@@ -78,11 +78,8 @@ test_main (void)
       snprintf (file_name, sizeof file_name, "file%d", i);
       snprintf (dir_name, sizeof dir_name, "dir%d", i);
       CHECK (chdir (".."), "chdir \"..\"");
-      // printf("chdir\n");
       CHECK (remove (dir_name), "remove \"%s\"", dir_name);
-      // printf("%s\n", dir_name);
       CHECK (remove (file_name), "remove \"%s\"", file_name);
-      //  printf("%s\n", file_name);
     }
   quiet = false;
 }

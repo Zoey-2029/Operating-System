@@ -38,7 +38,6 @@ dir_open (struct inode *inode)
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)
     {
-      // printf("dir_open\n");
       dir->inode = inode;
       dir->pos = 0;
       return dir;
@@ -73,7 +72,6 @@ dir_close (struct dir *dir)
 {
   if (dir != NULL)
     {
-      // printf("dir_close\n");
       inode_close (dir->inode);
       free (dir);
     }
@@ -121,38 +119,19 @@ lookup (const struct dir *dir, const char *name, struct dir_entry *ep,
 bool
 dir_lookup (const struct dir *dir, const char *name, struct inode **inode)
 {
-  // printf("============= in dir_lookup =============\n");
   struct dir_entry e;
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  // if (strcmp (name, "..") == 0)
-  //   {
-  //     // printf("here: first\n");
-  //     inode_read_at (dir->inode, &e, sizeof e, 0);
-  //     *inode = inode_open (e.inode_sector);
-  //     // printf("Open inode success? %d\n", inode != NULL);
-  //   }
-  // else if (strcmp (name, ".") == 0)
-  //   {
-  //     // printf("here: second\n");
-  //     *inode = inode_reopen (dir->inode);
-  //     // printf("Open inode success? %d\n", inode != NULL);
-  //   }
   if (lookup (dir, name, &e, NULL))
     {
-      // printf("here: third\n");
       *inode = inode_open (e.inode_sector);
-      // printf("Open inode success? %d\n", inode != NULL);
     }
   else
     {
-      // printf("here: forth\n");
       *inode = NULL;
-      // printf("Open inode success? %d\n", inode != NULL);
     }
-  // printf("==========================\n");
   return *inode != NULL;
 }
 
@@ -207,41 +186,17 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector,
   /* Create .. and . entries. */
   if (is_dir)
     {
-      // struct inode *new_inode = inode_open (inode_sector);
-      // /* Create .. entry. */
-      // for (ofs = 0; inode_read_at (new_inode, &e, sizeof e, ofs) == sizeof
-      // e;
-      //      ofs += sizeof e)
-      //   if (!e.in_use)
-      //     break;
-      // e.in_use = true;
-      // strlcpy (e.name, "..", 3);
-      // e.inode_sector = inode_get_inumber (dir->inode);
-      // success = inode_write_at (new_inode, &e, sizeof e, ofs) == sizeof e;
       success
           = create_entry ("..", inode_sector, inode_get_inumber (dir->inode));
       if (!success)
         {
           goto done;
         }
-
-      /* Create . entry. */
-      // for (ofs = 0; inode_read_at (new_inode, &e, sizeof e, ofs) == sizeof
-      // e;
-      //      ofs += sizeof e)
-      //   if (!e.in_use)
-      //     break;
-      // e.in_use = true;
-      // strlcpy (e.name, ".", 3);
-      // e.inode_sector = inode_get_inumber (new_inode);
-      // success = inode_write_at (new_inode, &e, sizeof e, ofs) == sizeof e;
       success = create_entry (".", inode_sector, inode_sector);
       if (!success)
         {
-          // inode_close (new_inode);
           goto done;
         }
-      // inode_close (new_inode);
     }
 done:
   return success;
@@ -293,13 +248,10 @@ dir_remove (struct dir *dir, const char *name)
 
   /* Open inode. */
   inode = inode_open (e.inode_sector);
-  // printf ("%d %d %d %d\n", inode_is_dir (dir->inode),
-  //         inode_get_open_cnt (dir->inode), inode_is_dir (inode),
-  //         inode_get_open_cnt (inode));
+
   if (inode == NULL
       || (inode_is_dir (inode) && inode_get_open_cnt (inode) > 3))
     {
-      // printf("done %d \n", inode_get_open_cnt (inode));
       goto done;
     }
 
@@ -337,64 +289,44 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   return false;
 }
 
-/*struct inode* dir_get_parent_inode(struct dir* dir)
-{
-  // if(dir == NULL) return NULL;
-  ASSERT(dir != NULL)
-
-  block_sector_t sector = inode_get_parent(dir_get_inode(dir));
-  return inode_open(sector);
-}*/
-
 struct dir *
 get_dir_from_path (const char *name)
 {
-  // printf("============= in get_dir_from_path =============\n");
   struct thread *curr_thread = thread_current ();
-  /* Absolute path */
+
+  /* Absolute path. */
   struct dir *curr_dir;
   if (name[0] == '/' || curr_thread->cwd == NULL)
     {
       curr_dir = dir_open_root ();
     }
-  /* Relative path */
+  /* Relative path. */
   else
     {
-      // printf("get_dir_from_path %p\n", curr_thread->cwd);
       curr_dir = dir_reopen (curr_thread->cwd);
     }
-
-  // printf("Full path is:  %s\n", name);
-  // printf("Open base success? %d\n", curr_dir != NULL);
 
   int length = strlen (name);
   char name_copy[length + 1];
   memcpy (name_copy, name, length + 1);
-
-  // printf("Copied path is %s\n", name_copy);
 
   char *token, *save_ptr;
   struct inode *next_inode;
 
   for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;)
     {
-      // printf ("Token: %s, curr_dir %p\n", token, curr_dir);
       if (strlen (token) > NAME_MAX)
         {
-          // printf ("Failed 1\n");
           dir_close (curr_dir);
           return NULL;
         }
-      // printf ("before _look up \n");
       if (!dir_lookup (curr_dir, token, &next_inode))
         {
-          // printf ("Failed 3\n");
           return curr_dir;
         }
 
       if (inode_is_dir (next_inode))
         {
-          // printf ("Success 1\n");
           token = strtok_r (NULL, "/", &save_ptr);
           if (token == NULL)
             {
@@ -406,12 +338,10 @@ get_dir_from_path (const char *name)
         }
       else
         {
-          // printf ("Failed 2\n");
           inode_close (next_inode);
           break;
         }
     }
-  // printf("==========================\n");
   return curr_dir;
 }
 
@@ -441,16 +371,15 @@ struct dir *
 dir_open_from_path (const char *name)
 {
   struct thread *curr_thread = thread_current ();
-  /* Absolute path */
+  /* Absolute path. */
   struct dir *curr_dir;
   if (name[0] == '/' || curr_thread->cwd == NULL)
     {
       curr_dir = dir_open_root ();
     }
-  /* Relative path */
+  /* Relative path. */
   else
     {
-      // printf("relative %p\n", curr_thread->cwd);
       curr_dir = dir_reopen (curr_thread->cwd);
     }
   int length = strlen (name);
@@ -463,18 +392,17 @@ dir_open_from_path (const char *name)
   for (token = strtok_r (name_copy, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
     {
-      // printf("token %s\n", token);
       if (strlen (token) > NAME_MAX
           || !dir_lookup (curr_dir, token, &next_inode))
         {
           dir_close (curr_dir);
           return NULL;
         }
-      //  printf("token %s\n", token);
-      /* Open directory from next_inode*/
+
+      /* Open directory from next_inode. */
       struct dir *next_dir = dir_open (next_inode);
 
-      /* Set next directory as current */
+      /* Set next directory as current. */
       if (!next_dir)
         {
           dir_close (curr_dir);
@@ -502,18 +430,16 @@ dir_open_from_path (const char *name)
 bool
 check_is_dir (const char *name)
 {
-  // printf("============= in get_dir_from_path =============\n");
   struct thread *curr_thread = thread_current ();
-  /* Absolute path */
+  /* Absolute path. */
   struct dir *curr_dir;
   if (name[0] == '/' || curr_thread->cwd == NULL)
     {
       curr_dir = dir_open_root ();
     }
-  /* Relative path */
+  /* Relative path. */
   else
     {
-      // printf("get_dir_from_path %p\n", curr_thread->cwd);
       curr_dir = dir_reopen (curr_thread->cwd);
     }
 
@@ -528,21 +454,17 @@ check_is_dir (const char *name)
     {
       if (strlen (token) > NAME_MAX)
         {
-          // printf ("Failed 1\n");
           dir_close (curr_dir);
           return false;
         }
-      // printf ("before _look up \n");
       if (!dir_lookup (curr_dir, token, &next_inode))
         {
-          // printf ("Failed 3\n");
           dir_close (curr_dir);
           return false;
         }
 
       if (inode_is_dir (next_inode))
         {
-          // printf ("Success 1\n");
           token = strtok_r (NULL, "/", &save_ptr);
           if (token == NULL)
             {
@@ -555,12 +477,10 @@ check_is_dir (const char *name)
         }
       else
         {
-          // printf ("Failed 2\n");
           inode_close (next_inode);
           break;
         }
     }
-  // printf("==========================\n");
   dir_close (curr_dir);
   return false;
 }

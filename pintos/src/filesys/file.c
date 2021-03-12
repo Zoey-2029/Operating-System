@@ -28,7 +28,6 @@ file_open (struct inode *inode)
     }
   else
     {
-      // printf("file_open failed %p %p\n", inode, file);
       inode_close (inode);
       free (file);
       return NULL; 

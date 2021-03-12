@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include "tests/lib.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -97,7 +96,6 @@ start_process (void *file_name_)
       sema_up (&thread_current ()->parent->sema_exec);
       thread_exit ();
     }
-    // printf("load %d\n", success);
   sema_up (&thread_current ()->parent->sema_exec);
 
   /* Start the user process by simulating a return from an
@@ -403,8 +401,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  // lock_release_filesys();
-  // printf("success %d\n", success);
   return success;
 }
 
@@ -536,7 +532,7 @@ static void *
 setup_arguments_in_stack (const char *file_name)
 {
 
-  // first copy argv to argv_copy
+  /* First copy argv to argv_copy. */
   char *fn_copy = calloc (1, strlen (file_name) + 1);
   char *to_free = fn_copy;
   if (fn_copy == NULL)

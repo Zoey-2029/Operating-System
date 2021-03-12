@@ -20,6 +20,7 @@ static struct lock read_ahead_lock;
 static struct semaphore read_ahead_sema;
 static tid_t write_t;
 static tid_t read_t;
+
 void
 cache_init ()
 {
@@ -35,12 +36,10 @@ cache_init ()
 struct cache_entry *
 find_in_cache (block_sector_t sector)
 {
-  //   printf ("asdad %p\n", &cache);
   struct list_elem *e;
 
   for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
     {
-      //  printf("asdasd\n");
       struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
       if (sector == ce->sector)
         return ce;
@@ -52,12 +51,10 @@ find_in_cache (block_sector_t sector)
 struct cache_entry *
 insert_cache (block_sector_t sector)
 {
-  //   lock_acquire_cache();
   struct cache_entry *ce;
   ce = calloc (1, sizeof *ce);
   if (!ce)
     {
-      //  lock_release_cache();
       return NULL;
     }
   if (cache_size == CACHE_MAX_SIZE)
@@ -65,17 +62,14 @@ insert_cache (block_sector_t sector)
       bool success = evict_cache ();
       if (!success)
         {
-          //  lock_release_cache();
           return NULL;
         }
       cache_size -= 1;
     }
   ce->sector = sector;
   sema_init (&ce->sema, 0);
-  //   printf ("sector%d\n", sector);
   list_push_back (&cache, &ce->elem);
   cache_size += 1;
-  //  lock_release_cache();
   return ce;
 }
 
@@ -108,18 +102,15 @@ destroy_cache ()
 {
 
   lock_acquire_cache ();
-  // printf ("destroying\n");
   struct list_elem *e;
   while (!list_empty (&cache))
     {
       e = list_pop_front (&cache);
       struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
-      // printf("%d\n",  ce->sector);
       if (ce->dirty)
         block_write (fs_device, ce->sector, ce->data);
       free (ce);
     }
-  // printf ("destroying finished\n");
   lock_release_cache ();
 }
 
@@ -127,7 +118,6 @@ void
 block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
                   int chunk_size, int bytes_read, bool ahead)
 {
-  // printf("asdasd\n");
   lock_acquire_cache ();
   struct cache_entry *ce = find_in_cache (sector_idx);
 
@@ -136,7 +126,6 @@ block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
 
       if (!ce->loaded)
         {
-          // printf ("sema_down %d\n", ce->sector);
           lock_release_cache ();
           sema_down (&ce->sema);
           lock_acquire_cache ();
@@ -151,7 +140,7 @@ block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
     memcpy (buffer + bytes_read, ce->data + sector_ofs, chunk_size);
   ce->loaded = true;
   ce->accessed = true;
-  /* need debug, start read ahead code. */
+
   if (ahead && sector_idx + 1 < block_size (fs_device))
     {
       ce = find_in_cache (sector_idx + 1);
@@ -185,7 +174,6 @@ block_write_cache (block_sector_t sector_idx, const void *buffer,
   struct cache_entry *ce = find_in_cache (sector_idx);
   if (ce && !ce->loaded)
     {
-      // printf ("sema_down %d\n", ce->sector);
       lock_release_cache ();
       sema_down (&ce->sema);
       lock_acquire_cache ();
@@ -207,12 +195,9 @@ write_behind (void *aux UNUSED)
   struct list_elem *e;
   while (true)
     {
-      // printf("woke up\n");
-      // printf ("lock_acquire_cache\n");
       lock_acquire_cache ();
       for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
         {
-          //  printf("asdasd\n");
           struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
           if (ce->dirty)
             {
@@ -232,7 +217,6 @@ read_ahead (void *aux UNUSED)
   while (true)
     {
       sema_down (&read_ahead_sema);
-      // printf ("lock_acquire_cache\n");
       lock_acquire_cache ();
       lock_acquire (&read_ahead_lock);
       while (!list_empty (&read_ahead_list))
@@ -252,12 +236,11 @@ read_ahead (void *aux UNUSED)
 void
 lock_acquire_cache (void)
 {
-  // printf ("lock_acquire_cache\n");
   lock_acquire (&cache_lock);
 }
+
 void
 lock_release_cache (void)
 {
-  // printf ("lock_release_cache\n");
   lock_release (&cache_lock);
 }
