@@ -146,16 +146,14 @@ page_fault (struct intr_frame *f)
 
   /* Count page faults. */
   page_fault_cnt++;
-
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
   void *upage = pg_round_down (fault_addr);
 
-  
   /* First check if we have this page stored in page table
-  if so, load it from file to be mmaped, excutable file or swap 
+  if so, load it from file to be mmaped, excutable file or swap
   exit if loading fails */
   lock_acquire_vm ();
   struct sup_page_table_entry *entry = find_in_table (upage);
@@ -173,13 +171,12 @@ page_fault (struct intr_frame *f)
         }
     }
   lock_release_vm ();
-
   /* If if the address is valid, if valid, grow the stack
   exit the thread in other cases. */
   if (check_addr_validity_then_grow_stack (fault_addr, user, f->esp))
     return;
   else if (user)
-    sys_exit(-1);
+    sys_exit (-1);
 
   printf ("Page fault at %p: %s error %s page in %s context.\n", fault_addr,
           not_present ? "not present" : "rights violation",
@@ -187,19 +184,18 @@ page_fault (struct intr_frame *f)
   kill (f);
 }
 
-/* page fault address could be accessed by kernel or user, if the fault 
-addrss is accessed by user, the addres must be a valid stack address, 
+/* page fault address could be accessed by kernel or user, if the fault
+addrss is accessed by user, the addres must be a valid stack address,
 if it is valid, grow the stack*/
-bool 
+bool
 check_addr_validity_then_grow_stack (void *addr, bool user, void *esp)
 {
-  if (user && ( !is_user_vaddr (addr) || addr < esp - 32))
-      return false;
-    
+  if (user && (!is_user_vaddr (addr) || addr < esp - 32))
+    return false;
+
   bool valid = true;
   lock_acquire_vm ();
   valid = grow_stack (addr);
   lock_release_vm ();
   return valid;
 }
-

@@ -97,6 +97,7 @@ start_process (void *file_name_)
       sema_up (&thread_current ()->parent->sema_exec);
       thread_exit ();
     }
+    // printf("load %d\n", success);
   sema_up (&thread_current ()->parent->sema_exec);
 
   /* Start the user process by simulating a return from an
@@ -403,6 +404,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 done:
   /* We arrive here whether the load is successful or not. */
   // lock_release_filesys();
+  // printf("success %d\n", success);
   return success;
 }
 

@@ -1,11 +1,12 @@
+#include "threads/thread.h"
 #include "devices/timer.h"
+#include "filesys/directory.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
-#include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/page_table.h"
 #include <debug.h>
@@ -197,6 +198,9 @@ thread_create (const char *name, int priority, thread_func *function,
 #ifdef USERPROG
   /* Initialize thread_info and insert into parent's child_processes. */
   t->parent = thread_current ();
+  if (thread_current ()->cwd)
+    t->cwd = dir_reopen (thread_current ()->cwd);
+
   info = calloc (1, sizeof (*info));
   if (info == NULL)
     return TID_ERROR;
@@ -489,6 +493,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   t->sleep_ticks = 0;
+  t->cwd = NULL;
 #ifdef USERPROG
   /* Data structures related to user program. */
   sema_init (&t->sema_exec, 0);

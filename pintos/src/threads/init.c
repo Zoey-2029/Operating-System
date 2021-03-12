@@ -35,6 +35,7 @@
 #include "devices/block.h"
 #include "devices/ide.h"
 #include "filesys/filesys.h"
+#include "filesys/directory.h"
 #include "filesys/fsutil.h"
 #endif
 #include "vm/frame_table.h"
@@ -128,6 +129,7 @@ main (void)
   filesys_init (format_filesys);
   swap_init ();
 #endif
+  thread_current()->cwd = dir_open_root ();
   printf ("Boot complete.\n");
 
   /* Run actions specified on kernel command line. */

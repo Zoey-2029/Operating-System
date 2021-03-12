@@ -1,0 +1,212 @@
+       	       	     +-------------------------+
+		     |		CS 140	       |
+		     | PROJECT 4: FILE SYSTEMS |
+		     |	   DESIGN DOCUMENT     |
+		     +-------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Ziyue Xiao <ziyuex@stanford,edu>
+FirstName LastName <email@domain.example>
+FirstName LastName <email@domain.example>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+		     INDEXED AND EXTENSIBLE FILES
+		     ============================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+
+# the number of direct, indirect and double indirect block
+in a block sector
+#define INODE_NUM 12
+#define INODE_NUM_DIRECT 10
+
+# the index of indirect and double indirect block in the 
+blocks array
+#define INDIRECT_INDEX INODE_NUM - 2
+#define DOUBLE_INDIRECT_INDEX INODE_NUM - 1
+
+# the number of sectors an indirect block and double indirect 
+block can hold
+#define INDIRECT_BLOCK_NUM_PER_SECTOR 128
+#define DOUBLE_INDIRECT_NUM_PER_SECTOR 128 * 128
+
+
+# replace the single block number with a block number array
+struct inode_disk
+{
+  block_sector_t blocks[INODE_NUM];
+}
+
+
+// structure for an indirect block and a double indirect block
+struct inode_indirect_sector 
+{
+  block_sector_t blocks[INDIRECT_BLOCK_NUM_PER_SECTOR];
+};
+
+>> A2: What is the maximum size of a file supported by your inode
+>> structure?  Show your work.
+Inode staucture would support 10 direct blocks, 1 indirect block 
+and 1 double indirect block, so the file size supported is:
+Level 0 -- 10 sectors * 512 bytes per sector 
+          = 5120 bytes
+Level 1 -- 1 indirect block * 128 sectors * 512 bytes per sector 
+          = 65536 bytes
+Level 2 -- 1 doubly indirect blocks * 128 indirect blocks *
+            65536 bytes per indirect block
+          = 8388608 bytes
+Total   -- 8459264 bytes
+
+
+---- SYNCHRONIZATION ----
+
+>> A3: Explain how your code avoids a race if two processes attempt to
+>> extend a file at the same time.
+
+When a process wants to write to a file, it will first check if current 
+write would extend the file. If so, one process get the lock of that 
+inode allocate empty blocks and modify the file length. So when two 
+processes both wants to extend a file, lock of that inode would protest 
+them from extending the file at the same time.
+
+>> A4: Suppose processes A and B both have file F open, both
+>> positioned at end-of-file.  If A reads and B writes F at the same
+>> time, A may read all, part, or none of what B writes.  However, A
+>> may not read data other than what B writes, e.g. if B writes
+>> nonzero data, A is not allowed to see all zeros.  Explain how your
+>> code avoids this race.
+
+If a process tries to write to a file, it will get the lock of that 
+inode, releases the lock when it finished writing the file. So in our
+design, the reader can only see all or none of what B writes. 
+
+>> A5: Explain how your synchronization design provides "fairness".
+>> File access is "fair" if readers cannot indefinitely block writers
+>> or vice versa.  That is, many processes reading from a file cannot
+>> prevent forever another process from writing the file, and many
+>> processes writing to a file cannot prevent another process forever
+>> from reading the file.
+
+Becasue reading a file doesn't affect the inode structure, so the 
+reading process won't get a lock and will not indefinitely block writers.
+And writers, no matter whether they get the lock, they will not block 
+readers since the reader doesn't need to get the lock to read files. 
+
+
+---- RATIONALE ----
+
+>> A6: Is your inode structure a multilevel index?  If so, why did you
+>> choose this particular combination of direct, indirect, and doubly
+>> indirect blocks?  If not, why did you choose an alternative inode
+>> structure, and what advantages and disadvantages does your
+>> structure have, compared to a multilevel index?
+
+Our inode structure is a multilevel index, it contains 10 direct 
+blocks, 1 indirect block and 1 double indirect block. We choose this
+particular combination because it is large eoungh to support a 8M file. 
+In fact, we can modify the static variables declared above to get a 
+different combination based on our needs, only if the size of 
+disk_inode preserves as a block size. 
+
+			    SUBDIRECTORIES
+			    ==============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+
+>> B2: Describe your code for traversing a user-specified path.  How
+>> do traversals of absolute and relative paths differ?
+
+---- SYNCHRONIZATION ----
+
+>> B4: How do you prevent races on directory entries?  For example,
+>> only one of two simultaneous attempts to remove a single file
+>> should succeed, as should only one of two simultaneous attempts to
+>> create a file with the same name, and so on.
+
+>> B5: Does your implementation allow a directory to be removed if it
+>> is open by a process or if it is in use as a process's current
+>> working directory?  If so, what happens to that process's future
+>> file system operations?  If not, how do you prevent it?
+
+---- RATIONALE ----
+
+>> B6: Explain why you chose to represent the current directory of a
+>> process the way you did.
+
+			     BUFFER CACHE
+			     ============
+
+---- DATA STRUCTURES ----
+
+>> C1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+
+>> C2: Describe how your cache replacement algorithm chooses a cache
+>> block to evict.
+
+>> C3: Describe your implementation of write-behind.
+
+>> C4: Describe your implementation of read-ahead.
+
+---- SYNCHRONIZATION ----
+
+>> C5: When one process is actively reading or writing data in a
+>> buffer cache block, how are other processes prevented from evicting
+>> that block?
+
+>> C6: During the eviction of a block from the cache, how are other
+>> processes prevented from attempting to access the block?
+
+---- RATIONALE ----
+
+>> C7: Describe a file workload likely to benefit from buffer caching,
+>> and workloads likely to benefit from read-ahead and write-behind.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students in future quarters?
+
+>> Any other comments?

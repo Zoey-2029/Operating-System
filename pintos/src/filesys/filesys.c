@@ -4,6 +4,8 @@
 #include "filesys/file.h"
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
+#include "threads/thread.h"
+#include "threads/malloc.h"
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
@@ -45,17 +47,39 @@ filesys_done (void)
    Fails if a file named NAME already exists,
    or if internal memory allocation fails. */
 bool
-filesys_create (const char *name, off_t initial_size)
+filesys_create (const char *name, off_t initial_size, bool is_dir)
 {
+  // printf("================ filesys_create start ================\n");
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open_root ();
+  // struct dir *dir = dir_open_root ();
+  struct dir *dir = dir_open_from_path (name);
+  // struct inode *inode = NULL;
+  if (!is_dir && check_is_dir(name))
+    {
+      // printf("failed! %d %d\n", is_dir, check_is_dir(name));
+      dir_close(dir);
+      return false;
+    }
+  dir_close(dir);
+  dir = get_dir_from_path (name);
+  char *file_name = get_file_name_from_path (name);
+
+  // printf("Full path: %s\n", name);
+  // printf("Dir path: %s", name);
+  // printf("File name: %s\n", file_name);
+
+  // printf("dir failed: %d\n", dir==NULL);
+  // printf("is dir : %d\n", is_dir);
+
   bool success = (dir != NULL && free_map_allocate (1, &inode_sector)
-                  && inode_create (inode_sector, initial_size)
-                  && dir_add (dir, name, inode_sector));
+                  && inode_create (inode_sector, initial_size, is_dir)
+                  && dir_add (dir, file_name, inode_sector, is_dir));
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
   dir_close (dir);
-
+  free (file_name);
+  // printf("success %d\n", success);
+  // printf("================ filesys_create end ================\n");
   return success;
 }
 
@@ -67,13 +91,29 @@ filesys_create (const char *name, off_t initial_size)
 struct file *
 filesys_open (const char *name)
 {
-  struct dir *dir = dir_open_root ();
+  if (strlen (name) == 0)
+    {
+      return NULL;
+    }
+  struct dir *dir = dir_open_from_path (name);
   struct inode *inode = NULL;
+  // printf("dir %p name %s\n", dir, name);
+  if (dir)
+    {
+      inode = dir_get_inode (dir);
+      // printf("%p inode\n", inode);
+      struct file * res = file_open (inode);
+      return res;
+    }
+
+  dir = get_dir_from_path (name);
+  char *file_name = get_file_name_from_path (name);
+  // struct dir *dir = dir_open_root ();
 
   if (dir != NULL)
-    dir_lookup (dir, name, &inode);
+    dir_lookup (dir, file_name, &inode);
   dir_close (dir);
-
+  free (file_name);
   return file_open (inode);
 }
 
@@ -84,10 +124,26 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name)
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
+  struct dir *dir = dir_open_from_path (name);
+  if (dir && inode_is_dir(dir_get_inode(dir)) && dir_get_inode (dir) == dir_get_inode (thread_current ()->cwd))
+    {
+      dir_close (dir);
+      return false;
+    }
+  char tmp[NAME_MAX + 1];
+  if (dir && inode_is_dir(dir_get_inode(dir)) && dir_readdir (dir, tmp))
+    {
+      dir_close (dir);
+      return false;
+    }
   dir_close (dir);
-
+  dir = get_dir_from_path (name);
+  char *file_name = get_file_name_from_path (name);
+  // printf("dir %p file name %s\n", dir, file_name);
+  
+  bool success = dir != NULL && dir_remove (dir, file_name);
+  dir_close (dir);
+  free (file_name);
   return success;
 }
 
@@ -97,8 +153,11 @@ do_format (void)
 {
   printf ("Formatting file system...");
   free_map_create ();
-  if (!dir_create (ROOT_DIR_SECTOR, 16))
+  if (!dir_create (ROOT_DIR_SECTOR, 16)
+      || !create_entry (".", ROOT_DIR_SECTOR, ROOT_DIR_SECTOR)
+      || !create_entry ("..", ROOT_DIR_SECTOR, ROOT_DIR_SECTOR))
     PANIC ("root directory creation failed");
+
   free_map_close ();
   printf ("done.\n");
 }
