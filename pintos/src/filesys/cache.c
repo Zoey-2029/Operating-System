@@ -19,6 +19,7 @@ static struct lock cache_lock;           /* Lock for cache table. */
 static struct lock read_ahead_lock;      /* Lock for read ahead. */
 static struct semaphore read_ahead_sema; /* Sema for read ahead. */
 
+/* Initialize cache. */
 void
 cache_init ()
 {
@@ -55,6 +56,7 @@ insert_cache (block_sector_t sector)
     {
       return NULL;
     }
+  /* Evict cache if full. */
   if (cache_size == CACHE_MAX_SIZE)
     {
       bool success = evict_cache ();
@@ -95,6 +97,7 @@ evict_cache ()
   return false;
 }
 
+/* Write to disk when finished. */
 void
 destroy_cache ()
 {
@@ -121,7 +124,7 @@ block_read_cache (block_sector_t sector_idx, void *buffer, int sector_ofs,
 
   if (ce)
     {
-
+      /* If not loaded, wait for the entry to be loaded. */
       if (!ce->loaded)
         {
           lock_release_cache ();
@@ -194,17 +197,25 @@ write_behind (void *aux UNUSED)
   while (true)
     {
       lock_acquire_cache ();
-      for (e = list_begin (&cache); e != list_end (&cache); e = list_next (e))
+      for (e = list_begin (&cache); e != list_end (&cache);)
         {
           struct cache_entry *ce = list_entry (e, struct cache_entry, elem);
           if (ce->dirty)
             {
+              struct list_elem *tmp = e;
+              e = list_next (e);
               block_write (fs_device, ce->sector, ce->data);
-              ce->dirty = false;
+              list_remove (tmp);
+              free (ce);
+              cache_size -= 1;
+            }
+          else
+            {
+              e = list_next (e);
             }
         }
       lock_release_cache ();
-      timer_sleep (100);
+      timer_sleep (10);
     }
 }
 

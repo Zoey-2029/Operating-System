@@ -4,8 +4,8 @@
 #include "filesys/file.h"
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
-#include "threads/thread.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,12 +51,12 @@ filesys_create (const char *name, off_t initial_size, bool is_dir)
 {
   block_sector_t inode_sector = 0;
   struct dir *dir = dir_open_from_path (name);
-  if (!is_dir && check_is_dir(name))
+  if (!is_dir && check_is_dir (name))
     {
-      dir_close(dir);
+      dir_close (dir);
       return false;
     }
-  dir_close(dir);
+  dir_close (dir);
   dir = get_dir_from_path (name);
   char *file_name = get_file_name_from_path (name);
 
@@ -89,7 +89,7 @@ filesys_open (const char *name)
   if (dir)
     {
       inode = dir_get_inode (dir);
-      struct file * res = file_open (inode);
+      struct file *res = file_open (inode);
       return res;
     }
 
@@ -111,13 +111,14 @@ bool
 filesys_remove (const char *name)
 {
   struct dir *dir = dir_open_from_path (name);
-  if (dir && inode_is_dir(dir_get_inode(dir)) && dir_get_inode (dir) == dir_get_inode (thread_current ()->cwd))
+  if (dir && inode_is_dir (dir_get_inode (dir))
+      && dir_get_inode (dir) == dir_get_inode (thread_current ()->cwd))
     {
       dir_close (dir);
       return false;
     }
   char tmp[NAME_MAX + 1];
-  if (dir && inode_is_dir(dir_get_inode(dir)) && dir_readdir (dir, tmp))
+  if (dir && inode_is_dir (dir_get_inode (dir)) && dir_readdir (dir, tmp))
     {
       dir_close (dir);
       return false;
@@ -125,7 +126,7 @@ filesys_remove (const char *name)
   dir_close (dir);
   dir = get_dir_from_path (name);
   char *file_name = get_file_name_from_path (name);
-  
+
   bool success = dir != NULL && dir_remove (dir, file_name);
   dir_close (dir);
   free (file_name);
